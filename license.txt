@@ -1,0 +1,3 @@
+Licencia MIT (MIT)
+
+Copyright (c) 2025, Instituto Tecnológico de Columbia Británica
