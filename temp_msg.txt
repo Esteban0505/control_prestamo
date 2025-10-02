@@ -1,0 +1,8 @@
+feat(ui): sidebar fijo y limpieza de código
+
+* Sidebar reparentado como hijo directo de `<body>`
+* Estilos ajustados con `position: fixed` y altura dinámica
+* `#content-wrapper` controla el scroll con `overflow-y: auto`
+* Ajuste dinámico de `margin-left` según toggle y viewport
+* Eliminados todos los logs de diagnóstico (`console.log`, `console.error`, etc.)
+* Código limpio y listo para producción
