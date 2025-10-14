@@ -31,13 +31,38 @@ class Amortization {
      * @param float $periodic_rate Tasa de interés periódica efectiva
      * @param int $periods Número de períodos
      * @param string $payment_frequency Frecuencia de pago (diario, semanal, quincenal, mensual)
-     * @param string $method Método de amortización (francesa, americana, mixta)
      * @param string $start_date Fecha de inicio del préstamo
+     * @param string $method Método de amortización ('francesa', 'estadounidense', 'mixta')
      * @return array Tabla de amortización
      */
-    public function calculate_amortization_table($principal, $periodic_rate, $periods, $payment_frequency, $method, $start_date) {
-        log_message('debug', 'Iniciando cálculo de tabla de amortización: principal=' . $principal . ', periodic_rate=' . $periodic_rate . ', periods=' . $periods . ', method=' . $method . ', frequency=' . $payment_frequency);
-        
+    public function calculate_amortization_table($principal, $periodic_rate, $periods, $payment_frequency, $start_date, $method) {
+        error_log("Amortization type en librería: " . $method);
+        log_message('debug', 'Iniciando cálculo de tabla de amortización: principal=' . $principal . ', periodic_rate=' . $periodic_rate . ', periods=' . $periods . ', method=' . $method . ', frequency=' . $payment_frequency . ', start_date=' . $start_date);
+
+        // Validaciones de entrada
+        if ($principal <= 0) {
+            throw new Exception('El principal debe ser mayor que cero.');
+        }
+        if ($periodic_rate < 0) {
+            throw new Exception('La tasa periódica debe ser mayor o igual a cero.');
+        }
+        if ($periods <= 0) {
+            throw new Exception('El número de períodos debe ser mayor que cero.');
+        }
+        try {
+            error_log('Fecha en Amortization: ' . $start_date);
+            $start_date = date('Y-m-d', strtotime($start_date)); new DateTime($start_date);
+        } catch (Exception $e) {
+            throw new Exception('La fecha de inicio no es válida.');
+        }
+
+        // Validación del método de amortización
+        log_message('debug', 'Validando método de amortización: ' . $method);
+        if (!in_array($method, ['francesa', 'estaunidense', 'mixta'])) {
+            log_message('error', 'Método de amortización inválido recibido: ' . $method);
+            throw new Exception('Método de amortización no válido. Debe ser "francesa", "estaunidense" o "mixta".');
+        }
+
         // Calcular intervalo de fechas
         $date_interval = $this->get_date_interval($payment_frequency);
         
@@ -46,24 +71,23 @@ class Amortization {
         
         $amortization_table = [];
 
-        log_message('debug', 'Método recibido en calculate_amortization_table: ' . $method);
-        $method = strtolower($method);
+        log_message('debug', 'Método de amortización recibido en calculate_amortization_table: ' . $method);
         switch ($method) {
             case 'francesa':
-                log_message('debug', 'Usando método de amortización francés');
+                log_message('debug', 'Usando método francés');
                 $amortization_table = $this->calculate_french_method($principal, $periodic_rate, $periods, $payment_dates);
                 break;
-            case 'estadounidense':
-                log_message('debug', 'Usando método de amortización estadounidense');
+            case 'estaunidense':
+                log_message('debug', 'Usando método estaunidense (americano): intereses constantes + capital al final');
                 $amortization_table = $this->calculate_american_method($principal, $periodic_rate, $periods, $payment_dates);
                 break;
             case 'mixta':
-                log_message('debug', 'Usando método de amortización mixta');
+                log_message('debug', 'Usando método mixto');
                 $amortization_table = $this->calculate_mixed_method($principal, $periodic_rate, $periods, $payment_dates);
                 break;
             default:
-                log_message('debug', 'Método no válido recibido: ' . $method);
-                throw new Exception('Método de amortización no válido');
+                log_message('debug', 'Método de amortización no válido recibido: ' . $method);
+                throw new Exception('Método de amortización inválido');
         }
         
         return $amortization_table;
@@ -189,9 +213,9 @@ class Amortization {
             case 'quincenal':
                 return 'P15D';
             case 'mensual':
-                return 'P1M';
+                return 'P1M'; // 1 mes exacto
             default:
-                return 'P1M'; // Default mensual
+                return 'P30D'; // Default mensual
         }
     }
     
@@ -238,7 +262,7 @@ class Amortization {
     /**
      * Calcula la amortización vía AJAX para mostrar en tiempo real
      */
-    public function ajax_calculate_amortization($principal, $periodic_rate, $periods, $payment_frequency, $method, $start_date) {
+    public function ajax_calculate_amortization($principal, $periodic_rate, $periods, $payment_frequency, $start_date, $method) {
         log_message('debug', 'Iniciando cálculo AJAX de amortización');
         try {
             $amortization_table = $this->calculate_amortization_table(
@@ -246,8 +270,8 @@ class Amortization {
                 $periodic_rate,
                 $periods,
                 $payment_frequency,
-                $method,
-                $start_date
+                $start_date,
+                $method
             );
 
             $summary = $this->calculate_loan_summary($amortization_table);

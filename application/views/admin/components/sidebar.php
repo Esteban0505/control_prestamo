@@ -39,10 +39,16 @@
   <!-- Clientes -->
   <?php if (function_exists('can_view') && can_view($this->session->userdata('perfil'), 'customers')): ?>
   <li class="nav-item">
-    <a class="nav-link" href="<?php echo site_url('admin/customers'); ?>" style="color:#fff;">
+    <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseClientes" aria-expanded="false" aria-controls="collapseClientes" style="color:#fff;">
       <i class="fas fa-users" style="color:#f2c94c;"></i>
       <span>Clientes</span>
     </a>
+    <div id="collapseClientes" class="collapse" aria-labelledby="headingUtilities" data-parent="#accordionSidebar">
+      <div class="bg-dark py-2 collapse-inner rounded" style="background:#343a40;">
+        <a class="collapse-item" href="<?php echo site_url('admin/customers'); ?>" style="color:#ffffff;">Lista de Clientes</a>
+        <a class="collapse-item" href="<?php echo site_url('admin/customers/overdue'); ?>" style="color:#ffffff;">Pagos Vencidos</a>
+      </div>
+    </div>
   </li>
   <?php endif; ?>
 

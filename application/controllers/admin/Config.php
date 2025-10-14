@@ -1,16 +1,14 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
 
-class Config extends CI_Controller {
+class Config extends MY_Controller {
 
   public function __construct()
   {
     parent::__construct();
     $this->load->model('user_m');
-    $this->load->library('session');
     $this->load->library('form_validation');
     $this->load->library('pagination');
-    $this->session->userdata('loggedin') == TRUE || redirect('user/login');
   }
 
   public function index()
@@ -72,9 +70,14 @@ class Config extends CI_Controller {
     $this->form_validation->set_rules('email', 'Correo electrónico', 'callback_validate_email_unique');
 
     if ($this->form_validation->run() == TRUE) {
-      $data = $this->user_m->array_from_post(['first_name', 'last_name', 'email', 'perfil', 'password']);
-      
-      if ($this->user_m->create_user($data)) {
+       // Asegurar AUTO_INCREMENT correcto
+       $query = $this->db->query("SELECT COALESCE(MAX(id), 0) as max_id FROM users");
+       $max_id = $query->row()->max_id;
+       $this->db->query("ALTER TABLE users AUTO_INCREMENT = " . ($max_id + 1));
+
+       $data = $this->user_m->array_from_post(['first_name', 'last_name', 'email', 'perfil', 'password']);
+
+       if ($this->user_m->create_user($data)) {
         $this->session->set_flashdata('success', 'Usuario creado exitosamente');
         redirect('admin/config');
       } else {
@@ -82,6 +85,8 @@ class Config extends CI_Controller {
       }
     }
 
+    $data['csrf_name'] = $this->security->get_csrf_token_name();
+    $data['csrf_hash'] = $this->security->get_csrf_hash();
     $data['subview'] = 'admin/config/form';
     $data['form_title'] = 'Crear Usuario';
     $data['form_action'] = 'admin/config/create';
@@ -119,6 +124,8 @@ class Config extends CI_Controller {
     }
 
     $data['user'] = $user;
+    $data['csrf_name'] = $this->security->get_csrf_token_name();
+    $data['csrf_hash'] = $this->security->get_csrf_hash();
     $data['subview'] = 'admin/config/form';
     $data['form_title'] = 'Editar Usuario';
     $data['form_action'] = 'admin/config/edit/' . $id;
@@ -264,8 +271,12 @@ class Config extends CI_Controller {
 
   public function save_permissions()
   {
+    // LOG DIAGNÓSTICO
+    error_log("[DIAGNOSTIC] Config::save_permissions called");
+
     // Verificar sesión y permisos
     if (!$this->session->userdata('loggedin')) {
+      error_log("[DIAGNOSTIC] Config::save_permissions: user not logged in");
       $response = ['success' => false, 'message' => 'No autorizado'];
       $this->output
         ->set_content_type('application/json')
@@ -277,8 +288,11 @@ class Config extends CI_Controller {
     $role = $this->input->post('role');
     $permissions = $this->input->post('permissions');
 
+    error_log("[DIAGNOSTIC] Config::save_permissions: user_id=$user_id, role=$role, permissions_count=" . (is_array($permissions) ? count($permissions) : 'not_array'));
+
     // Validar datos de entrada
     if (empty($user_id) || !is_numeric($user_id)) {
+      error_log("[DIAGNOSTIC] Config::save_permissions: invalid user_id");
       $response = ['success' => false, 'message' => 'ID de usuario inválido'];
       $this->output
         ->set_content_type('application/json')
@@ -287,6 +301,7 @@ class Config extends CI_Controller {
     }
 
     if (empty($role)) {
+      error_log("[DIAGNOSTIC] Config::save_permissions: empty role");
       $response = ['success' => false, 'message' => 'Rol es requerido'];
       $this->output
         ->set_content_type('application/json')
@@ -295,6 +310,7 @@ class Config extends CI_Controller {
     }
 
     if (!is_array($permissions) || empty($permissions)) {
+      error_log("[DIAGNOSTIC] Config::save_permissions: invalid permissions array");
       $response = ['success' => false, 'message' => 'Array de permisos inválido o vacío'];
       $this->output
         ->set_content_type('application/json')
@@ -305,6 +321,7 @@ class Config extends CI_Controller {
     // Validar estructura de cada permiso
     foreach ($permissions as $perm) {
       if (!is_array($perm) || !isset($perm['permission_name']) || !isset($perm['value'])) {
+        error_log("[DIAGNOSTIC] Config::save_permissions: invalid permission structure");
         $response = ['success' => false, 'message' => 'Estructura de permisos inválida'];
         $this->output
           ->set_content_type('application/json')
@@ -316,12 +333,15 @@ class Config extends CI_Controller {
     $user = $this->user_m->get_user($user_id);
 
     if (!$user) {
+      error_log("[DIAGNOSTIC] Config::save_permissions: user not found");
       $response = ['success' => false, 'message' => 'Usuario no encontrado'];
       $this->output
         ->set_content_type('application/json')
         ->set_output(json_encode($response));
       return;
     }
+
+    error_log("[DIAGNOSTIC] Config::save_permissions: user found, updating role and permissions");
 
     // Actualizar rol y permisos
     $update_data = ['role' => $role];
@@ -331,13 +351,19 @@ class Config extends CI_Controller {
       $update_data['perfil'] = $role;
     }
 
-    if ($this->user_m->update_user($user_id, $update_data) &&
-        $this->user_m->save_permissions($user_id, $permissions)) {
+    $update_result = $this->user_m->update_user($user_id, $update_data);
+    $save_result = $this->user_m->save_permissions($user_id, $permissions);
+
+    error_log("[DIAGNOSTIC] Config::save_permissions: update_user result=" . ($update_result ? 'true' : 'false') . ", save_permissions result=" . ($save_result ? 'true' : 'false'));
+
+    if ($update_result && $save_result) {
+      error_log("[DIAGNOSTIC] Config::save_permissions: success");
       $response = [
         'success' => true,
         'message' => 'Permisos guardados exitosamente'
       ];
     } else {
+      error_log("[DIAGNOSTIC] Config::save_permissions: failed");
       $response = ['success' => false, 'message' => 'Error al guardar los permisos'];
     }
 

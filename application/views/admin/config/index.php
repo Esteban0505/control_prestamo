@@ -4,10 +4,6 @@
         <a class="d-sm-inline-block btn btn-sm btn-success shadow-sm" href="<?php echo site_url('admin/config/create'); ?>">
             <i class="fas fa-plus-circle fa-sm"></i> Agregar Usuario
         </a>
-        <!-- Botón de prueba temporal -->
-        <button type="button" class="btn btn-sm btn-warning shadow-sm ml-2" id="test-modal">
-            <i class="fas fa-bug"></i> Probar Modal
-        </button>
     </div>
     <div class="card-body">
         <?php if ($this->session->flashdata('success')): ?>
@@ -126,7 +122,7 @@
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <?php if($user->ultimo_login): ?>
+                                    <?php if($user->ultimo_login && strtotime($user->ultimo_login) > 0): ?>
                                         <?= date('d/m/Y H:i', strtotime($user->ultimo_login)) ?>
                                     <?php else: ?>
                                         <span class="text-muted">Nunca</span>

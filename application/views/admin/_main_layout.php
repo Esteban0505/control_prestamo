@@ -126,6 +126,38 @@
     <script src="<?php echo base_url('assets/js/user-management.js'); ?>"></script>
     <?php endif; ?>
 
+    <!-- ✅ SCRIPT PARA VALIDACIÓN AJAX EN EDITAR CLIENTE -->
+    <?php if(isset($subview) && strpos($subview, 'customers/edit') !== false): ?>
+    <script>
+    $(document).ready(function() {
+      $('#dni').on('blur', function() {
+        var dni = $(this).val().trim();
+        var id = $(this).data('id');
+        if (dni === '') {
+          $('#dni-error').hide();
+          $('button[type="submit"]').prop('disabled', false);
+          return;
+        }
+        $.ajax({
+          url: '<?php echo site_url('admin/customers/check_dni_ajax'); ?>',
+          type: 'POST',
+          data: {dni: dni, id: id},
+          dataType: 'json',
+          success: function(response) {
+            if (response.exists) {
+              $('#ajax-error').html('⚠️ El número de cédula ingresado ya existe. Verifica la información antes de continuar.').show();
+              $('button[type="submit"]').prop('disabled', true);
+            } else {
+              $('#ajax-error').hide();
+              $('button[type="submit"]').prop('disabled', false);
+            }
+          }
+        });
+      });
+    });
+    </script>
+    <?php endif; ?>
+
 </body>
 
 </html>

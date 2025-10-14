@@ -22,6 +22,7 @@
         <?php endif; ?>
 
         <?php echo form_open($form_action, 'id="user_form"'); ?>
+        <input type="hidden" name="<?= $csrf_name ?>" value="<?= $csrf_hash ?>" />
         
         <div class="row">
             <div class="col-md-6">
@@ -83,7 +84,7 @@
                             required>
                         <option value="">Seleccione un perfil</option>
                         <option value="admin" <?= set_select('perfil', 'admin', isset($user) && $user->perfil == 'admin') ?>>Administrador</option>
-                        <option value="usuario" <?= set_select('perfil', 'usuario', isset($user) && $user->perfil == 'usuario') ?>>Usuario</option>
+                        <option value="viewer" <?= set_select('perfil', 'viewer', isset($user) && $user->perfil == 'viewer') ?>>Viewer</option>
                         <option value="operador" <?= set_select('perfil', 'operador', isset($user) && $user->perfil == 'operador') ?>>Operador</option>
                     </select>
                     <div class="invalid-feedback">
@@ -194,6 +195,7 @@
 </div>
 
 <script>
+if (typeof $ !== 'undefined') {
 $(document).ready(function() {
     // Toggle para mostrar/ocultar contraseña
     $('#togglePassword').on('click', function() {
@@ -296,6 +298,7 @@ $(document).ready(function() {
         $(this).removeClass('is-invalid');
     });
 });
+}
 </script>
 
 <style>

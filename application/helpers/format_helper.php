@@ -62,7 +62,8 @@ if (!function_exists('parse_money_co')) {
 if (!function_exists('validate_money_co')) {
     /**
      * Valida si un valor está en formato de moneda colombiana válido
-     * 
+     * Permite . o , como separador de miles
+     *
      * @param string $value Valor a validar
      * @return bool True si es válido, false si no
      */
@@ -73,7 +74,7 @@ if (!function_exists('validate_money_co')) {
         $str = trim($str);
         $str = str_replace('$', '', $str);
         $str = str_replace(' ', '', $str);
-        return (bool) preg_match('/^(\d{1,3}(\.\d{3})*|\d+)(,\d{1,2})?$/', $str);
+        return (bool) preg_match('/^(\d{1,3}([.,]\d{3})*|\d+)([.,]\d{1,2})?$/', $str);
     }
 }
 

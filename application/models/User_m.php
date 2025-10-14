@@ -35,9 +35,10 @@ class User_m extends MY_Model {
     ),
     array(
       'field' => 'perfil',
-      'rules' => 'trim|required',
+      'rules' => 'trim|required|in_list[admin,operador,viewer]',
       'errors' => array(
         'required' => 'El perfil es requerido',
+        'in_list' => 'El perfil debe ser admin, operador o viewer',
       ),
     ),
     array(
@@ -112,12 +113,27 @@ class User_m extends MY_Model {
     if (!empty($data['password'])) {
       $data['password'] = password_hash($data['password'], PASSWORD_DEFAULT);
     }
-    
+
     // Establecer valores por defecto
     $data['estado'] = isset($data['estado']) ? $data['estado'] : 1;
     $data['fecha'] = date('Y-m-d H:i:s');
-    
-    return $this->db->insert('users', $data);
+
+    log_message('debug', 'Datos para crear usuario: ' . json_encode($data));
+
+    $result = $this->db->insert('users', $data);
+    $id = $this->db->insert_id();
+
+    log_message('debug', 'Resultado insert: ' . ($result ? 'true' : 'false') . ', ID: ' . $id);
+
+    if ($result && $id > 0) {
+      return true;
+    } else {
+      // Si se insertó con ID 0, eliminar el registro
+      if ($id == 0) {
+        $this->db->delete('users', ['email' => $data['email']]);
+      }
+      return false;
+    }
   }
 
   public function update_user($id, $data)
@@ -231,6 +247,14 @@ class User_m extends MY_Model {
 
         $this->session->set_userdata($data);
 
+        // Inicializar permisos en sesión leyendo primero de user_permissions
+        $permissions = $this->get_permissions($user->id);
+        $permissions_array = [];
+        foreach ($permissions as $perm) {
+          $permissions_array[$perm['permission_name']] = (int) $perm['value'];
+        }
+        $this->session->set_userdata('permissions', $permissions_array);
+
         // Actualizar último login
         $this->update_last_login($user->id);
 
@@ -249,7 +273,31 @@ class User_m extends MY_Model {
 
   public function loggedin()
   {
-    return (bool) $this->session->userdata('loggedin');
+    $session_loggedin = $this->session->userdata('loggedin');
+    error_log("[DIAGNOSTIC] loggedin() called, session 'loggedin': " . ($session_loggedin ? 'true' : 'false'));
+
+    if (!$session_loggedin) {
+      error_log("[DIAGNOSTIC] loggedin() returning false - no session");
+      return false;
+    }
+
+    // Verificar estado activo del usuario
+    $user_id = $this->session->userdata('user_id');
+    if ($user_id) {
+      $user = $this->get_user($user_id);
+      if ($user && $user->estado == 1) {
+        error_log("[DIAGNOSTIC] loggedin() returning true - user active");
+        return true;
+      } else {
+        error_log("[DIAGNOSTIC] loggedin() returning false - user inactive or not found, estado: " . ($user ? $user->estado : 'null'));
+        // Destruir sesión si usuario inactivo
+        $this->session->sess_destroy();
+        return false;
+      }
+    }
+
+    error_log("[DIAGNOSTIC] loggedin() returning false - no user_id in session");
+    return false;
   }
 
   public function get_current_user()
@@ -292,13 +340,18 @@ class User_m extends MY_Model {
    */
   public function get_permissions($user_id)
   {
+    // LOG DIAGNÓSTICO
+    error_log("[DIAGNOSTIC] get_permissions called for user_id: $user_id");
+
     // Verificar si existe la tabla user_permissions
     if (!$this->db->table_exists('user_permissions')) {
+      error_log("[DIAGNOSTIC] get_permissions: user_permissions table doesn't exist, creating...");
       $this->create_user_permissions_table();
-      // Insertar permisos por defecto
+      // Insertar permisos por defecto solo al crear la tabla
       $user = $this->get_user($user_id);
       if ($user) {
         $user_role = isset($user->role) ? $user->role : $user->perfil;
+        error_log("[DIAGNOSTIC] get_permissions: creating default permissions for role: $user_role");
         $permissions = $this->get_permissions_by_role($user_role);
         foreach ($permissions as $name => $value) {
           $data = [
@@ -307,6 +360,7 @@ class User_m extends MY_Model {
             'value' => $value ? 1 : 0
           ];
           $this->db->insert('user_permissions', $data);
+          error_log("[DIAGNOSTIC] get_permissions: inserted default permission $name = $value");
         }
       }
     }
@@ -322,24 +376,24 @@ class User_m extends MY_Model {
       $permissions[] = ['permission_name' => $row->permission_name, 'value' => (int) $row->value];
     }
 
-    // Si no hay permisos, insertar permisos por defecto
+    error_log("[DIAGNOSTIC] get_permissions: found " . count($permissions) . " permissions in DB");
+
+    // Si no hay permisos, devolver permisos por defecto SIN guardarlos en BD
+    // Solo guardar permisos cuando el usuario los configure explícitamente
     if (empty($permissions)) {
+      error_log("[DIAGNOSTIC] get_permissions: no permissions in DB, using defaults");
       $user = $this->get_user($user_id);
       if ($user) {
         $user_role = isset($user->role) ? $user->role : $user->perfil;
         $default_permissions = $this->get_permissions_by_role($user_role);
         foreach ($default_permissions as $name => $value) {
-          $data = [
-            'user_id' => $user_id,
-            'permission_name' => $name,
-            'value' => $value ? 1 : 0
-          ];
-          $this->db->insert('user_permissions', $data);
           $permissions[] = ['permission_name' => $name, 'value' => (int) $value];
+          error_log("[DIAGNOSTIC] get_permissions: default permission $name = $value");
         }
       }
     }
 
+    error_log("[DIAGNOSTIC] get_permissions: returning " . count($permissions) . " permissions");
     return $permissions;
   }
 
@@ -348,8 +402,25 @@ class User_m extends MY_Model {
    */
   public function save_permissions($user_id, $permissions)
   {
+    // LOG DIAGNÓSTICO
+    error_log("[DIAGNOSTIC] save_permissions called for user_id: $user_id with " . count($permissions) . " permissions");
+
+    // VALIDACIÓN: Verificar user_id válido
+    if ($user_id <= 0) {
+      error_log("[DIAGNOSTIC] save_permissions: ERROR - invalid user_id: $user_id");
+      return false;
+    }
+
+    // VALIDACIÓN: Verificar que el usuario existe
+    $user = $this->get_user($user_id);
+    if (!$user) {
+      error_log("[DIAGNOSTIC] save_permissions: ERROR - user not found for user_id: $user_id");
+      return false;
+    }
+
     // Verificar si existe la tabla user_permissions
     if (!$this->db->table_exists('user_permissions')) {
+      error_log("[DIAGNOSTIC] save_permissions: user_permissions table doesn't exist, creating...");
       $this->create_user_permissions_table();
     }
 
@@ -357,7 +428,8 @@ class User_m extends MY_Model {
 
     // Eliminar permisos existentes
     $this->db->where('user_id', $user_id);
-    $this->db->delete('user_permissions');
+    $deleted = $this->db->delete('user_permissions');
+    error_log("[DIAGNOSTIC] save_permissions: deleted existing permissions, affected rows: " . $this->db->affected_rows());
 
     // Insertar nuevos permisos
     foreach ($permissions as $perm) {
@@ -366,11 +438,26 @@ class User_m extends MY_Model {
         'permission_name' => $perm['permission_name'],
         'value' => isset($perm['value']) ? (int) $perm['value'] : 0
       ];
-      $this->db->insert('user_permissions', $data);
+      $inserted = $this->db->insert('user_permissions', $data);
+      error_log("[DIAGNOSTIC] save_permissions: inserted permission {$perm['permission_name']} = {$data['value']}, success: " . ($inserted ? 'yes' : 'no'));
     }
 
     $this->db->trans_complete();
-    return $this->db->trans_status();
+    $status = $this->db->trans_status();
+    error_log("[DIAGNOSTIC] save_permissions: transaction completed, status: " . ($status ? 'success' : 'failed'));
+
+    // Refrescar permisos en sesión si la transacción fue exitosa
+    if ($status) {
+      $permissions = $this->get_permissions($user_id);
+      $permissions_array = [];
+      foreach ($permissions as $perm) {
+        $permissions_array[$perm['permission_name']] = (int) $perm['value'];
+      }
+      $this->session->set_userdata('permissions', $permissions_array);
+      error_log("[DIAGNOSTIC] save_permissions: session permissions refreshed");
+    }
+
+    return $status;
   }
 
   /**
@@ -463,13 +550,24 @@ class User_m extends MY_Model {
     if (!$user) {
       return false;
     }
-    
+
     // Opción 1: Soft delete (cambiar estado a -1 o similar)
     // $this->db->where('id', $user_id);
     // return $this->db->update('users', ['estado' => -1]);
-    
+
     // Opción 2: Hard delete (eliminar completamente)
     $this->db->where('id', $user_id);
     return $this->db->delete('users');
+  }
+
+  /**
+   * Obtiene la lista de usuarios activos con id, first_name y last_name
+   */
+  public function get_active_users()
+  {
+    $this->db->select('id, first_name, last_name');
+    $this->db->from('users');
+    $this->db->where('estado', 1);
+    return $this->db->get()->result();
   }
 }

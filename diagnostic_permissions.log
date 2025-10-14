@@ -1,0 +1,82 @@
+[2025-10-02 06:09:58] === INICIANDO DIAGNÓSTICO DE PERMISOS ===
+
+[2025-10-02 06:09:58] 
+--- PASO 1: Verificar estructura de BD ---
+[2025-10-02 06:09:58] ✓ Tabla 'users' existe
+[2025-10-02 06:09:58] ✓ Tabla 'user_permissions' existe
+[2025-10-02 06:09:59] ✓ Estructura de user_permissions correcta
+[2025-10-02 06:09:59] 
+--- PASO 2: Crear usuario de prueba ---
+[2025-10-02 06:09:59] ✓ Usuario de prueba creado con ID: 0
+[2025-10-02 06:09:59] 
+--- PASO 3: Simular envío desde frontend ---
+[2025-10-02 06:09:59] Datos simulados del frontend:
+[2025-10-02 06:09:59]   dashboard: 1
+[2025-10-02 06:09:59]   customers: 0
+[2025-10-02 06:09:59]   loans: 1
+[2025-10-02 06:09:59]   payments: 1
+[2025-10-02 06:09:59]   reports: 1
+[2025-10-02 06:09:59]   config: 0
+[2025-10-02 06:09:59] Llamando a save_permissions...
+[2025-10-02 06:09:59] [SIMULATE] save_permissions called for user_id: 0 with 6 permissions
+[2025-10-02 06:09:59] [SIMULATE] save_permissions: deleted existing permissions
+[2025-10-02 06:09:59] [SIMULATE] save_permissions: inserted permission dashboard = 1
+[2025-10-02 06:09:59] [SIMULATE] save_permissions: inserted permission customers = 0
+[2025-10-02 06:09:59] [SIMULATE] save_permissions: inserted permission loans = 1
+[2025-10-02 06:09:59] [SIMULATE] save_permissions: inserted permission payments = 1
+[2025-10-02 06:09:59] [SIMULATE] save_permissions: inserted permission reports = 1
+[2025-10-02 06:09:59] [SIMULATE] save_permissions: inserted permission config = 0
+[2025-10-02 06:09:59] [SIMULATE] save_permissions: completed successfully
+[2025-10-02 06:09:59] ✓ save_permissions ejecutado exitosamente
+[2025-10-02 06:09:59] 
+--- PASO 4: Verificar guardado en BD ---
+[2025-10-02 06:09:59] Permisos guardados en BD:
+[2025-10-02 06:09:59]   config: 0
+[2025-10-02 06:09:59]   customers: 0
+[2025-10-02 06:09:59]   dashboard: 1
+[2025-10-02 06:09:59]   loans: 1
+[2025-10-02 06:09:59]   payments: 1
+[2025-10-02 06:09:59]   reports: 1
+[2025-10-02 06:09:59] ✓ Todos los permisos guardados correctamente
+[2025-10-02 06:09:59] 
+--- PASO 5: Verificar get_permissions ---
+[2025-10-02 06:09:59] [SIMULATE] get_permissions called for user_id: 0
+[2025-10-02 06:09:59] [SIMULATE] get_permissions: found 6 permissions in DB
+[2025-10-02 06:09:59] [SIMULATE] get_permissions: returning 6 permissions
+[2025-10-02 06:09:59] Permisos obtenidos por get_permissions:
+[2025-10-02 06:09:59]   config: 0
+[2025-10-02 06:09:59]   customers: 0
+[2025-10-02 06:09:59]   dashboard: 1
+[2025-10-02 06:09:59]   loans: 1
+[2025-10-02 06:09:59]   payments: 1
+[2025-10-02 06:09:59]   reports: 1
+[2025-10-02 06:09:59] ✓ get_permissions funciona correctamente
+[2025-10-02 06:09:59] 
+--- PASO 6: Verificar can_view ---
+[2025-10-02 06:09:59] Usuario: ID 0, Rol: operador
+[2025-10-02 06:09:59] Resultados de can_view:
+[2025-10-02 06:09:59] [SIMULATE] can_view called: role='operador', section='dashboard'
+[2025-10-02 06:09:59] [SIMULATE] can_view: returning true
+[2025-10-02 06:09:59]   can_view('operador', 'dashboard'): true
+[2025-10-02 06:09:59] [SIMULATE] can_view called: role='operador', section='customers'
+[2025-10-02 06:09:59] [SIMULATE] can_view: returning true
+[2025-10-02 06:09:59]   can_view('operador', 'customers'): true
+[2025-10-02 06:09:59] [SIMULATE] can_view called: role='operador', section='loans'
+[2025-10-02 06:09:59] [SIMULATE] can_view: returning true
+[2025-10-02 06:09:59]   can_view('operador', 'loans'): true
+[2025-10-02 06:09:59] [SIMULATE] can_view called: role='operador', section='payments'
+[2025-10-02 06:09:59] [SIMULATE] can_view: returning true
+[2025-10-02 06:09:59]   can_view('operador', 'payments'): true
+[2025-10-02 06:09:59] [SIMULATE] can_view called: role='operador', section='reports'
+[2025-10-02 06:09:59] [SIMULATE] can_view: returning true
+[2025-10-02 06:09:59]   can_view('operador', 'reports'): true
+[2025-10-02 06:09:59] [SIMULATE] can_view called: role='operador', section='config'
+[2025-10-02 06:09:59] [SIMULATE] can_view: returning false
+[2025-10-02 06:09:59]   can_view('operador', 'config'): false
+[2025-10-02 06:09:59] [SIMULATE] can_view called: role='operador', section='customers'
+[2025-10-02 06:09:59] [SIMULATE] can_view: returning true
+[2025-10-02 06:09:59] ✗ ERROR: can_view debería retornar false para 'customers' (permiso=0)
+[2025-10-02 06:09:59] ERROR FATAL: can_view no respeta permisos granulares
+[2025-10-02 06:09:59] Stack trace: #0 C:\xampp\htdocs\prestamo-1\diagnostic_permissions.php(232): DiagnosticPermissions->step_verify_can_view(0)
+#1 C:\xampp\htdocs\prestamo-1\diagnostic_permissions.php(520): DiagnosticPermissions->run_diagnostic()
+#2 {main}

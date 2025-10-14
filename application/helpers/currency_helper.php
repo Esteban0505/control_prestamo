@@ -47,15 +47,21 @@ if (!function_exists('format_to_display')) {
      * @return string Valor en formato colombiano (ej: "$2.000.000,50")
      */
     function format_to_display($value, $include_symbol = true) {
+        log_message('debug', 'format_to_display input: ' . $value . ', type: ' . gettype($value));
         if (empty($value) || $value === null || $value === '') {
-            return $include_symbol ? '$0,00' : '0,00';
+            return $include_symbol ? '$0' : '0';
         }
-        
+
         $value = (float) $value;
-        
-        // Formatear con separadores de miles y decimales
-        $formatted = number_format($value, 2, ',', '.');
-        
+        log_message('debug', 'format_to_display after float cast: ' . $value);
+
+        // Usar floor para evitar redondeo, truncar hacia abajo
+        $value = floor($value);
+
+        // Formatear con separadores de miles sin decimales
+        $formatted = number_format($value, 0, ',', '.');
+        log_message('debug', 'format_to_display output: ' . $formatted);
+
         return $include_symbol ? '$' . $formatted : $formatted;
     }
 }
@@ -76,8 +82,8 @@ if (!function_exists('validate_colombian_currency')) {
         $value = str_replace('$', '', $value);
         $value = str_replace(' ', '', $value);
         
-        // Patrón para formato colombiano: 1.000.000,50
-        return preg_match('/^[\d]{1,3}(\.[\d]{3})*(,[\d]{1,2})?$/', $value);
+        // Patrón para formato colombiano: 1.000.000,50 o 1000000
+        return preg_match('/^[\d]+(\.[\d]{3})*(,[\d]{1,2})?$/', $value);
     }
 }
 

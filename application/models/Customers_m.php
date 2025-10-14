@@ -20,6 +20,11 @@ class Customers_m extends MY_Model {
       'field' => 'last_name',
       'label' => 'apellido(s)',
       'rules' => 'trim|required'
+    ),
+    array(
+      'field' => 'tipo_cliente',
+      'label' => 'tipo de cliente',
+      'rules' => 'trim|required|in_list[normal,especial]'
     )
   );
 
@@ -39,6 +44,8 @@ class Customers_m extends MY_Model {
     $customer->user_id = NULL;
     $customer->ruc = '';
     $customer->company = '';
+    $customer->tope_manual = NULL;
+    $customer->tipo_cliente = 'normal';
 
     return $customer;
   }
@@ -114,6 +121,60 @@ class Customers_m extends MY_Model {
     return $this->db->get($this->_table_name)->$method();
   }
 
+  public function check_blacklist($client_id)
+  {
+    $this->db->where('client_id', $client_id);
+    $query = $this->db->get('blacklist');
+    return $query->num_rows() > 0;
+  }
+
+  public function add_to_blacklist($client_id, $reason)
+  {
+    $data = array(
+      'client_id' => $client_id,
+      'reason' => $reason
+    );
+    return $this->db->insert('blacklist', $data);
+  }
+
+  public function get_customer_loan_count($client_id)
+  {
+    $this->db->where('customer_id', $client_id);
+    return $this->db->count_all_results('loans');
+  }
+
+  public function get_customer_quota($client_id)
+  {
+    $customer = $this->get($client_id);
+    if (!$customer) return 0;
+
+    $loan_count = $this->get_customer_loan_count($client_id);
+    $base_quota = 0;
+    if ($loan_count == 0) $base_quota = 500000; // 1er préstamo
+    elseif ($loan_count == 1) $base_quota = 1200000; // 2do
+    else $base_quota = 5000000; // 3+
+
+    // Multiplicar por 2 si es cliente especial
+    $multiplier = ($customer->tipo_cliente == 'especial') ? 2 : 1;
+    return $base_quota * $multiplier;
+  }
+
+  public function save($data, $id = NULL)
+  {
+    // Validar que el DNI no esté duplicado
+    if (isset($data['dni']) && !empty($data['dni'])) {
+      $this->db->where('dni', $data['dni']);
+      if ($id !== NULL) {
+        $this->db->where('id !=', $id);
+      }
+      $query = $this->db->get('customers');
+      if ($query->num_rows() > 0) {
+        return false; // DNI duplicado
+      }
+    }
+
+    return parent::save($data, $id);
+  }
 
 }
 

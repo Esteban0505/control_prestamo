@@ -94,14 +94,6 @@ function initializeDataTable() {
  * Configurar manejadores de eventos
  */
 function setupEventHandlers() {
-    // Botón de prueba
-    $(document).on('click', '#test-modal', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        console.log('=== PROBANDO MODAL ===');
-        testModal();
-    });
-    
     // Botón de permisos
     $(document).on('click', '.btn-permissions', function(e) {
         e.preventDefault();
@@ -165,154 +157,105 @@ function updatePermissionsForRole(role) {
     console.log('Permisos actualizados para rol:', role, perms);
 }
 
-/**
- * Probar modal
- */
-function testModal() {
-    console.log('Modal existe:', $('#permissionsModal').length > 0);
-    
-    if ($('#permissionsModal').length === 0) {
-        alert('Error: Modal de permisos no encontrado');
-        return;
-    }
-    
-    // Configurar modal con datos de prueba
-    $('#permission-user-name').text('Usuario de Prueba');
-    $('#permission-user-role').text('Admin');
-    $('#user-role-select').val('admin');
-    $('#permissionsModal').data('user-id', 1);
-    
-    // Configurar permisos de prueba
-    $('#permissionsModal input[name="permisos[]"][value="dashboard"]').prop('checked', true);
-    $('#permissionsModal input[name="permisos[]"][value="sidebar"]').prop('checked', true);
-    $('#permissionsModal input[name="permisos[]"][value="sidebar_back"]').prop('checked', true);
-    $('#permissionsModal input[name="permisos[]"][value="customers"]').prop('checked', true);
-    $('#permissionsModal input[name="permisos[]"][value="coins"]').prop('checked', true);
-    $('#permissionsModal input[name="permisos[]"][value="loans"]').prop('checked', true);
-    $('#permissionsModal input[name="permisos[]"][value="payments"]').prop('checked', true);
-    $('#permissionsModal input[name="permisos[]"][value="reports"]').prop('checked', true);
-    $('#permissionsModal input[name="permisos[]"][value="config"]').prop('checked', true);
-    
-    // Mostrar modal
-    $('#permissionsModal').modal('show');
-    console.log('Modal de prueba mostrado');
-}
 
 /**
- * Abrir modal de permisos
- */
-function openPermissionsModal($btn) {
-    var userId = $btn.data('id');
-    var userName = $btn.data('name');
-    var userRole = $btn.data('role');
-    
-    console.log('Usuario:', userId, userName, userRole);
-    
-    if ($('#permissionsModal').length === 0) {
-        console.error('Modal de permisos no encontrado en el DOM');
-        alert('Error: Modal de permisos no encontrado');
-        return;
-    }
-    
-    // Configurar modal
-    $('#permission-user-name').text(userName);
-    $('#permission-user-role').text(userRole.charAt(0).toUpperCase() + userRole.slice(1));
-    $('#user-role-select').val(userRole);
-    $('#permissionsModal').data('user-id', userId);
-    
-    // Cargar permisos del usuario
-    $.ajax({
-        url: base_url + 'admin/config/get_permissions',
-        type: 'POST',
-        data: { 
-            user_id: userId, 
-            [csrf_name]: csrf_hash 
-        },
-        dataType: 'json',
-        success: function(res) {
-            console.log('get_permissions response', res);
-            if (res.success) {
-                // Poblar modal con permisos
-                $('#permissionsModal select[name="role"]').val(res.user.role);
-                // Reset all checkboxes
-                $('#permissionsModal input[name="permisos[]"]').prop('checked', false);
-                // Set permissions from array
-                for (var i = 0; i < res.permissions.length; i++) {
-                    var perm = res.permissions[i];
-                    $('#permissionsModal input[name="permisos[]"][value="' + perm.permission_name + '"]').prop('checked', !!perm.value);
-                }
+  * Abrir modal de permisos
+  */
+ function openPermissionsModal($btn) {
+     var userId = $btn.data('id');
+     var userName = $btn.data('name');
+     var userRole = $btn.data('role');
 
-                // Mostrar modal
-                $('#permissionsModal').modal('show');
-                console.log('Modal de permisos mostrado exitosamente');
-            } else {
-                console.error('Error al cargar permisos:', res.message);
-                alert('Error al cargar permisos: ' + (res.message || 'Error desconocido'));
-            }
-        },
-        error: function(xhr, status, error) {
-            console.error('AJAX error get_permissions', xhr);
-            alert('Error de conexión al cargar permisos: ' + error);
-        }
-    });
-}
+     if ($('#permissionsModal').length === 0) {
+         alert('Error: Modal de permisos no encontrado');
+         return;
+     }
+
+     // Configurar modal
+     $('#permission-user-name').text(userName);
+     $('#permission-user-role').text(userRole.charAt(0).toUpperCase() + userRole.slice(1));
+     $('#user-role-select').val(userRole);
+     $('#permissionsModal').data('user-id', userId);
+
+     // Cargar permisos del usuario
+     $.ajax({
+         url: base_url + 'admin/config/get_permissions',
+         type: 'POST',
+         data: {
+             user_id: userId,
+             [csrf_name]: csrf_hash
+         },
+         dataType: 'json',
+         success: function(res) {
+             if (res.success) {
+                 // Poblar modal con permisos
+                 $('#permissionsModal select[name="role"]').val(res.user.role);
+                 // Reset all checkboxes
+                 $('#permissionsModal input[name="permisos[]"]').prop('checked', false);
+                 // Set permissions from array
+                 for (var i = 0; i < res.permissions.length; i++) {
+                     var perm = res.permissions[i];
+                     $('#permissionsModal input[name="permisos[]"][value="' + perm.permission_name + '"]').prop('checked', !!perm.value);
+                 }
+
+                 // Mostrar modal
+                 $('#permissionsModal').modal('show');
+             } else {
+                 alert('Error al cargar permisos: ' + (res.message || 'Error desconocido'));
+             }
+         },
+         error: function(xhr, status, error) {
+             alert('Error de conexión al cargar permisos: ' + error);
+         }
+     });
+ }
 
 /**
- * Guardar permisos
- */
-function savePermissions() {
-    var userId = $('#permissionsModal').data('user-id');
-    
-    console.log('Guardando permisos para usuario:', userId);
+  * Guardar permisos
+  */
+ function savePermissions() {
+     var userId = $('#permissionsModal').data('user-id');
 
-    var allPermissions = ['dashboard', 'sidebar', 'sidebar_back', 'customers', 'coins', 'loans', 'payments', 'reports', 'config'];
-    var checkedPermissions = [];
+     var allPermissions = ['dashboard', 'sidebar', 'sidebar_back', 'customers', 'coins', 'loans', 'payments', 'reports', 'config'];
+     var checkedPermissions = [];
 
-    $('#permissionsModal input[name="permisos[]"]:checked').each(function() {
-        checkedPermissions.push($(this).val());
-    });
+     $('#permissionsModal input[name="permisos[]"]:checked').each(function() {
+         checkedPermissions.push($(this).val());
+     });
 
-    console.log('Permisos marcados:', checkedPermissions);
+     var permissionsArray = [];
+     allPermissions.forEach(function(perm) {
+         permissionsArray.push({
+             permission_name: perm,
+             value: checkedPermissions.includes(perm) ? 1 : 0
+         });
+     });
 
-    var permissionsArray = [];
-    allPermissions.forEach(function(perm) {
-        permissionsArray.push({
-            permission_name: perm,
-            value: checkedPermissions.includes(perm) ? 1 : 0
-        });
-    });
+     var payload = {
+         user_id: userId,
+         role: $('#permissionsModal select[name="role"]').val(),
+         permissions: permissionsArray
+     };
+     payload[csrf_name] = csrf_hash;
 
-    var payload = {
-        user_id: userId,
-        role: $('#permissionsModal select[name="role"]').val(),
-        permissions: permissionsArray
-    };
-    payload[csrf_name] = csrf_hash;
-    
-    console.log('Payload a enviar:', payload);
-    
-    $.ajax({
-        url: base_url + 'admin/config/save_permissions',
-        type: 'POST',
-        data: payload,
-        dataType: 'json',
-        success: function(res) {
-            console.log('save_permissions response', res);
-            if (res.success) {
-                $('#permissionsModal').modal('hide');
-                alert('Permisos actualizados correctamente');
-                console.log('Permisos guardados exitosamente');
-            } else {
-                console.error('Error al guardar permisos:', res.message);
-                alert('Error al guardar permisos: ' + (res.message || 'Error desconocido'));
-            }
-        },
-        error: function(xhr, status, error) {
-            console.error('save_permissions error', xhr);
-            alert('Error de conexión al guardar permisos: ' + error);
-        }
-    });
-}
+     $.ajax({
+         url: base_url + 'admin/config/save_permissions',
+         type: 'POST',
+         data: payload,
+         dataType: 'json',
+         success: function(res) {
+             if (res.success) {
+                 $('#permissionsModal').modal('hide');
+                 alert('Permisos actualizados correctamente');
+             } else {
+                 alert('Error al guardar permisos: ' + (res.message || 'Error desconocido'));
+             }
+         },
+         error: function(xhr, status, error) {
+             alert('Error de conexión al guardar permisos: ' + error);
+         }
+     });
+ }
 
 /**
  * Toggle estado de usuario

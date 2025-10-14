@@ -32,43 +32,83 @@ if (!function_exists('has_role')) {
 }
 
 if (!function_exists('can_view')) {
-    /**
-     * Verifica si el usuario puede ver una sección específica
-     *
-     * @param string $user_role Rol del usuario actual
-     * @param string $section Sección a verificar
-     * @return bool True si el usuario puede ver la sección
-     */
-    function can_view($user_role, $section) {
-        if (empty($user_role)) {
-            return false;
-        }
+      /**
+       * Verifica si el usuario puede ver una sección específica
+       *
+       * @param string $user_role Rol del usuario actual
+       * @param string $section Sección a verificar
+       * @return bool True si el usuario puede ver la sección
+       */
+      function can_view($user_role, $section) {
+          // LOG DIAGNÓSTICO
+          $log_msg = "[DIAGNOSTIC] can_view called: role='$user_role', section='$section'";
+          error_log($log_msg);
 
-        // Admin puede ver todo
-        if ($user_role === 'admin') {
-            return true;
-        }
+          if (empty($user_role)) {
+              error_log("[DIAGNOSTIC] can_view: empty user_role, returning false");
+              return false;
+          }
 
-        // Obtener permisos granulares del usuario desde la BD
-        $CI =& get_instance();
-        $user_id = $CI->session->userdata('user_id');
+          // Admin puede ver todo
+          if ($user_role === 'admin') {
+              error_log("[DIAGNOSTIC] can_view: admin role, returning true");
+              return true;
+          }
 
-        if ($user_id) {
-            $CI->load->model('user_m');
-            $user_permissions = $CI->user_m->get_permissions($user_id);
+          // Priorizar permisos de sesión/BD sobre defaults por rol
+          $CI =& get_instance();
+          $user_id = $CI->session->userdata('user_id');
+          error_log("[DIAGNOSTIC] can_view: user_id from session='$user_id'");
 
-            // Buscar el permiso específico para la sección
-            foreach ($user_permissions as $perm) {
-                if ($perm['permission_name'] === $section) {
-                    return (bool) $perm['value'];
-                }
-            }
-        }
+          if ($user_id) {
+              // Primero verificar permisos en sesión
+              $session_permissions = $CI->session->userdata('permissions');
+              if ($session_permissions && isset($session_permissions[$section])) {
+                  $result = (bool) $session_permissions[$section];
+                  error_log("[DIAGNOSTIC] can_view: found permission in session for '$section', returning " . ($result ? 'true' : 'false'));
+                  return $result;
+              }
 
-        // Sin permisos granulares explícitos, denegar acceso
-        return false;
-    }
-}
+              // Si no está en sesión, obtener de BD y actualizar sesión
+              $CI->load->model('user_m');
+              $user_permissions = $CI->user_m->get_permissions($user_id);
+              error_log("[DIAGNOSTIC] can_view: got " . count($user_permissions) . " permissions from get_permissions");
+
+              // Actualizar sesión con permisos de BD
+              $permissions_array = [];
+              foreach ($user_permissions as $perm) {
+                  $permissions_array[$perm['permission_name']] = (int) $perm['value'];
+              }
+              $CI->session->set_userdata('permissions', $permissions_array);
+
+              // Buscar el permiso específico
+              if (isset($permissions_array[$section])) {
+                  $result = (bool) $permissions_array[$section];
+                  error_log("[DIAGNOSTIC] can_view: found permission in DB for '$section', returning " . ($result ? 'true' : 'false'));
+                  return $result;
+              }
+          }
+
+          // Si no hay permisos granulares explícitos, usar permisos por defecto del rol
+          error_log("[DIAGNOSTIC] can_view: no granular permission found for '$section', using role defaults");
+          $default_permissions = [
+              'admin' => [
+                  'dashboard' => true, 'customers' => true, 'loans' => true, 'payments' => true, 'reports' => true, 'config' => true
+              ],
+              'operador' => [
+                  'dashboard' => true, 'customers' => true, 'loans' => true, 'payments' => true, 'reports' => true, 'config' => false
+              ],
+              'viewer' => [
+                  'dashboard' => true, 'customers' => false, 'loans' => false, 'payments' => false, 'reports' => true, 'config' => false
+              ]
+          ];
+
+          $role_defaults = isset($default_permissions[$user_role]) ? $default_permissions[$user_role] : $default_permissions['viewer'];
+          $result = isset($role_defaults[$section]) ? $role_defaults[$section] : false;
+          error_log("[DIAGNOSTIC] can_view: role default for '$section' = " . ($result ? 'true' : 'false'));
+          return $result;
+      }
+  }
 
 if (!function_exists('can_edit')) {
     /**

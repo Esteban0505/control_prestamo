@@ -1,15 +1,13 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
 
-class Coins extends CI_Controller {
+class Coins extends MY_Controller {
 
   public function __construct()
   {
     parent::__construct();
     $this->load->model('coins_m');
-    $this->load->library('session');
     $this->load->library('form_validation');
-    $this->session->userdata('loggedin') == TRUE || redirect('user/login');
   }
 
   public function index()
