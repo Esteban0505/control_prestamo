@@ -91,8 +91,8 @@
     </a>
     <div id="collapseReportes" class="collapse" aria-labelledby="headingUtilities" data-parent="#accordionSidebar">
       <div class="bg-dark py-2 collapse-inner rounded" style="background:#343a40;">
-        <a class="collapse-item" href="<?php echo site_url('admin/reports'); ?>" style="color:#ffffff;">Resumen General</a>
-        <a class="collapse-item" href="<?php echo site_url('admin/reports/dates'); ?>" style="color:#ffffff;">Entre Fechas</a>
+        <a class="collapse-item" href="<?php echo site_url('admin/reports'); ?>" style="color:#ffffff;">Comisiones por Cobrador</a>
+        <a class="collapse-item" href="<?php echo site_url('admin/reports/dates'); ?>" style="color:#ffffff;">Administrador</a>
         <a class="collapse-item" href="<?php echo site_url('admin/reports/customers'); ?>" style="color:#ffffff;">General x Cliente</a>
       </div>
     </div>

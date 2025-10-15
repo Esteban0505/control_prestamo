@@ -1,1538 +1,398 @@
-<!-- Dashboard Ejecutivo de Cobranzas -->
-<div class="row mb-4">
-  <div class="col-12">
-    <div class="card shadow">
-      <div class="card-header py-3 bg-dark text-white">
-        <h6 class="m-0 font-weight-bold">📊 Dashboard Ejecutivo de Cobranzas</h6>
-      </div>
-      <div class="card-body">
-        <div class="row">
-          <!-- Total Cobros -->
-          <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-primary shadow h-100 py-2">
-              <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                  <div class="col mr-2">
-                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Cobros</div>
-                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $cobranza_totals['total_cobros']->total_cobros ?? 0; ?></div>
-                  </div>
-                  <div class="col-auto">
-                    <i class="fas fa-cash-register fa-2x text-gray-300"></i>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Cobros por Usuario -->
-          <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-success shadow h-100 py-2">
-              <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                  <div class="col mr-2">
-                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Cobradores Activos</div>
-                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $cobranza_totals['cobros_por_usuario'] ?? 0; ?></div>
-                  </div>
-                  <div class="col-auto">
-                    <i class="fas fa-users fa-2x text-gray-300"></i>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Pagos Completos -->
-          <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-info shadow h-100 py-2">
-              <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                  <div class="col mr-2">
-                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Pagos Completos</div>
-                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $cobranza_totals['pagos_completos'] ?? 0; ?></div>
-                  </div>
-                  <div class="col-auto">
-                    <i class="fas fa-check-circle fa-2x text-gray-300"></i>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Pagos Parciales -->
-          <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card border-left-warning shadow h-100 py-2">
-              <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                  <div class="col mr-2">
-                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Pagos Parciales</div>
-                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $cobranza_totals['pagos_parciales'] ?? 0; ?></div>
-                  </div>
-                  <div class="col-auto">
-                    <i class="fas fa-clock fa-2x text-gray-300"></i>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Resumen Financiero Consolidado -->
-<div class="row mb-4">
-  <div class="col-12">
-    <div class="card border-left-primary shadow">
-      <div class="card-header py-3 bg-primary text-white">
-        <h6 class="m-0 font-weight-bold">💰 Resumen Financiero Consolidado</h6>
-      </div>
-      <div class="card-body">
-        <div class="row">
-          <div class="col-md-3">
-            <div class="text-center">
-              <div class="text-xs text-muted mb-1">Total Recaudado</div>
-              <div class="h4 mb-0 font-weight-bold text-success">$<?php echo number_format($cobranza_totals['total_cobros']->total_recaudado ?? 0, 0, ',', '.'); ?></div>
-            </div>
-          </div>
-          <div class="col-md-3">
-            <div class="text-center">
-              <div class="text-xs text-muted mb-1">Intereses Generados</div>
-              <div class="h4 mb-0 font-weight-bold text-info">$<?php echo number_format(($cobranza_totals['total_cobros']->total_recaudado ?? 0) * 0.4, 0, ',', '.'); ?></div>
-            </div>
-          </div>
-          <div class="col-md-3">
-            <div class="text-center">
-              <div class="text-xs text-muted mb-1">Comisiones Cobradores (40%)</div>
-              <div class="h4 mb-0 font-weight-bold text-warning">$<?php echo number_format(($cobranza_totals['total_cobros']->total_recaudado ?? 0) * 0.4, 0, ',', '.'); ?></div>
-            </div>
-          </div>
-          <div class="col-md-3">
-            <div class="text-center">
-              <div class="text-xs text-muted mb-1">Capital Recuperado</div>
-              <div class="h4 mb-0 font-weight-bold text-primary">$<?php echo number_format(($cobranza_totals['total_cobros']->total_recaudado ?? 0) * 0.6, 0, ',', '.'); ?></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Gráfico Principal de Comisiones -->
-<div class="row mb-4">
-  <div class="col-xl-8 col-lg-7">
-    <div class="card shadow">
-      <div class="card-header py-3 bg-primary text-white">
-        <h6 class="m-0 font-weight-bold">📈 Rendimiento de Cobradores</h6>
-      </div>
-      <div class="card-body">
-        <canvas id="commissionChart" height="300"></canvas>
-      </div>
-    </div>
-  </div>
-  <div class="col-xl-4 col-lg-5">
-    <div class="card shadow">
-      <div class="card-header py-3 bg-success text-white">
-        <h6 class="m-0 font-weight-bold">💼 Estadísticas Generales</h6>
-      </div>
-      <div class="card-body">
-        <div class="mb-3">
-          <div class="text-xs text-muted">Total Cobrado</div>
-          <div class="h5 mb-0 font-weight-bold text-success" id="total_cobrado">$0</div>
-        </div>
-        <div class="mb-3">
-          <div class="text-xs text-muted">Comisiones Generadas (40%)</div>
-          <div class="h5 mb-0 font-weight-bold text-warning" id="total_comisiones">$0</div>
-        </div>
-        <div class="mb-3">
-          <div class="text-xs text-muted">Total Cobros Realizados</div>
-          <div class="h5 mb-0 font-weight-bold text-info" id="total_cobros">0</div>
-        </div>
-        <hr>
-        <a href="<?php echo base_url('admin/reports/interest_commissions'); ?>" class="btn btn-warning btn-sm btn-block">
-          <i class="fas fa-coins"></i> Ver Detalle de Intereses
-        </a>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Incluir Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@latest/dist/Chart.min.js"></script>
-
-<!-- Script para gráficas -->
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  // Cargar datos de comisiones
-  fetch(base_url + 'admin/reports/get_commission_stats')
-    .then(response => response.json())
-    .then(data => {
-      if (data.stats && data.stats.length > 0) {
-        renderCommissionChart(data.stats);
-        updateTotals(data.totals);
-      }
-    })
-    .catch(error => console.error('Error cargando estadísticas:', error));
-
-  function renderCommissionChart(stats) {
-    const ctx = document.getElementById('commissionChart').getContext('2d');
-    const labels = stats.map(item => item.user_name);
-    const commissions = stats.map(item => parseFloat(item.total_commission));
-
-    new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'Comisiones (40%)',
-          data: commissions,
-          backgroundColor: 'rgba(54, 162, 235, 0.6)',
-          borderColor: 'rgba(54, 162, 235, 1)',
-          borderWidth: 1
-        }]
-      },
-      options: {
-        responsive: true,
-        plugins: {
-          legend: {
-            position: 'top',
-          },
-          tooltip: {
-            callbacks: {
-              label: function(context) {
-                const stat = stats[context.dataIndex];
-                return [
-                  'Comisión: $' + parseFloat(stat.total_commission).toLocaleString('es-CO'),
-                  'Total Cobrado: $' + parseFloat(stat.total_amount).toLocaleString('es-CO'),
-                  'N° Cobros: ' + stat.num_cobros
-                ];
-              }
-            }
-          }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: {
-              callback: function(value) {
-                return '$' + value.toLocaleString('es-CO');
-              }
-            }
-          }
-        }
-      }
-    });
-  }
-
-  function updateTotals(totals) {
-    if (totals) {
-      document.getElementById('total_cobrado').textContent = '$' + parseFloat(totals.total_amount || 0).toLocaleString('es-CO');
-      document.getElementById('total_comisiones').textContent = '$' + parseFloat(totals.total_commission || 0).toLocaleString('es-CO');
-      document.getElementById('total_cobros').textContent = totals.total_cobros || 0;
-    }
-  }
-
-  // Exportación de comisiones
-  document.getElementById('btnExportExcel').addEventListener('click', function() {
-    const start = document.getElementById('start_date').value;
-    const end = document.getElementById('end_date').value;
-    const collector = document.getElementById('collector_id').value;
-    window.open(base_url + 'admin/reports/export_commissions_excel?start_date=' + start + '&end_date=' + end + '&collector_id=' + collector, '_blank');
-  });
-
-  document.getElementById('btnExportPDF').addEventListener('click', function() {
-    const start = document.getElementById('start_date').value;
-    const end = document.getElementById('end_date').value;
-    const collector = document.getElementById('collector_id').value;
-    window.open(base_url + 'admin/reports/export_commissions_pdf?start_date=' + start + '&end_date=' + end + '&collector_id=' + collector, '_blank');
-  });
-
-  // Cargar datos para gráficos
-  loadChartData();
-});
-
-function loadChartData() {
-  // Gráfico de pagos por cliente
-  fetch(base_url + 'admin/reports/get_chart_data?type=payments_by_customer')
-    .then(response => response.json())
-    .then(data => {
-      if (data.length > 0) {
-        renderPaymentsByCustomerChart(data);
-      }
-    })
-    .catch(error => console.error('Error cargando pagos por cliente:', error));
-
-  // Gráfico de top cobradores
-  fetch(base_url + 'admin/reports/get_chart_data?type=top_collectors')
-    .then(response => response.json())
-    .then(data => {
-      if (data.length > 0) {
-        renderTopCollectorsChart(data);
-      }
-    })
-    .catch(error => console.error('Error cargando top cobradores:', error));
-
-  // Gráfico de rachas
-  fetch(base_url + 'admin/reports/get_chart_data?type=streaks')
-    .then(response => response.json())
-    .then(data => {
-      if (Object.keys(data).length > 0) {
-        renderStreakChart(data);
-      }
-    })
-    .catch(error => console.error('Error cargando rachas:', error));
-
-  // Gráfico de castigos
-  fetch(base_url + 'admin/reports/get_chart_data?type=penalties')
-    .then(response => response.json())
-    .then(data => {
-      if (data.length > 0) {
-        renderPenaltiesChart(data);
-      }
-    })
-    .catch(error => console.error('Error cargando castigos:', error));
-}
-
-function renderPaymentsByCustomerChart(data) {
-  const ctx = document.getElementById('paymentsByCustomerChart').getContext('2d');
-  const labels = data.map(item => item.customer_name.length > 15 ? item.customer_name.substring(0, 15) + '...' : item.customer_name);
-  const values = data.map(item => parseInt(item.payments_count));
-
-  new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: 'Número de Pagos',
-        data: values,
-        backgroundColor: 'rgba(54, 162, 235, 0.6)',
-        borderColor: 'rgba(54, 162, 235, 1)',
-        borderWidth: 1
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { position: 'top' },
-        tooltip: {
-          callbacks: {
-            label: function(context) {
-              const item = data[context.dataIndex];
-              return [
-                'Cliente: ' + item.customer_name,
-                'Pagos: ' + item.payments_count,
-                'Total: $' + parseFloat(item.total_paid).toLocaleString('es-CO')
-              ];
-            }
-          }
-        }
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: { precision: 0 }
-        }
-      }
-    }
-  });
-}
-
-function renderTopCollectorsChart(data) {
-  const ctx = document.getElementById('topCollectorsChart').getContext('2d');
-  const labels = data.map(item => item.user_name.length > 15 ? item.user_name.substring(0, 15) + '...' : item.user_name);
-  const values = data.map(item => parseInt(item.payments_count));
-
-  new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: 'Número de Cobranzas',
-        data: values,
-        backgroundColor: 'rgba(255, 99, 132, 0.6)',
-        borderColor: 'rgba(255, 99, 132, 1)',
-        borderWidth: 1
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { position: 'top' },
-        tooltip: {
-          callbacks: {
-            label: function(context) {
-              const item = data[context.dataIndex];
-              return [
-                'Cobrador: ' + item.user_name,
-                'Cobranzas: ' + item.payments_count
-              ];
-            }
-          }
-        }
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: { precision: 0 }
-        }
-      }
-    }
-  });
-}
-
-function renderStreakChart(data) {
-  const ctx = document.getElementById('streakChart').getContext('2d');
-  const labels = Object.keys(data);
-  const values = Object.values(data);
-
-  new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: 'Racha Máxima (cuotas seguidas)',
-        data: values,
-        backgroundColor: 'rgba(75, 192, 192, 0.6)',
-        borderColor: 'rgba(75, 192, 192, 1)',
-        borderWidth: 1
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { position: 'top' },
-        tooltip: {
-          callbacks: {
-            label: function(context) {
-              return 'Racha: ' + values[context.dataIndex] + ' cuotas seguidas';
-            }
-          }
-        }
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: { precision: 0 }
-        }
-      }
-    }
-  });
-}
-
-function renderPenaltiesChart(data) {
-  const ctx = document.getElementById('penaltiesChart').getContext('2d');
-  const labels = data.map(item => item.penalty_reason || 'Sin motivo');
-  const values = data.map(item => parseInt(item.count));
-
-  new Chart(ctx, {
-    type: 'pie',
-    data: {
-      labels: labels,
-      datasets: [{
-        data: values,
-        backgroundColor: [
-          'rgba(255, 99, 132, 0.6)',
-          'rgba(54, 162, 235, 0.6)',
-          'rgba(255, 205, 86, 0.6)',
-          'rgba(75, 192, 192, 0.6)',
-          'rgba(153, 102, 255, 0.6)',
-          'rgba(255, 159, 64, 0.6)'
-        ],
-        borderColor: [
-          'rgba(255, 99, 132, 1)',
-          'rgba(54, 162, 235, 1)',
-          'rgba(255, 205, 86, 1)',
-          'rgba(75, 192, 192, 1)',
-          'rgba(153, 102, 255, 1)',
-          'rgba(255, 159, 64, 1)'
-        ],
-        borderWidth: 1
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { position: 'right' },
-        tooltip: {
-          callbacks: {
-            label: function(context) {
-              const item = data[context.dataIndex];
-              return [
-                'Motivo: ' + (item.penalty_reason || 'Sin motivo'),
-                'Cantidad: ' + item.count,
-                'Monto Total: $' + parseFloat(item.total_amount).toLocaleString('es-CO')
-              ];
-            }
-          }
-        }
-      }
-    }
-  });
-}
-</script>
-
-<!-- Filtros y Exportación de Comisiones -->
+<!-- Vista del Cobrador - Comisiones del 40% -->
 <div class="card shadow mb-4">
   <div class="card-header py-3">
-    <h6 class="m-0 font-weight-bold text-primary">Filtros y Exportación de Comisiones</h6>
+    <h6 class="m-0 font-weight-bold text-primary">
+      <i class="fas fa-coins"></i> 📊 Mis Comisiones - Cobrador
+    </h6>
+    <p class="mb-0 text-muted small">
+      Consulta tus comisiones del 40% por intereses cobrados
+    </p>
   </div>
   <div class="card-body">
-    <div class="form-row">
-      <div class="form-group col-md-3">
-        <label class="small mb-1" for="start_date">Fecha Inicio</label>
-        <input type="date" class="form-control" id="start_date">
-      </div>
-      <div class="form-group col-md-3">
-        <label class="small mb-1" for="end_date">Fecha Fin</label>
-        <input type="date" class="form-control" id="end_date">
-      </div>
-      <div class="form-group col-md-3">
-        <label class="small mb-1" for="collector_id">Cobrador</label>
-        <select class="form-control" id="collector_id">
+    <!-- Información informativa -->
+    <div class="alert alert-info mb-4">
+      <h6><i class="fas fa-info-circle"></i> 💬 Envía el 40% de tus intereses al administrador</h6>
+      <p class="mb-0">Presiona el botón "Enviar Comisión" para registrar el envío de tu parte correspondiente al administrador.</p>
+    </div>
+
+    <!-- Filtros -->
+    <div class="row mb-4">
+      <div class="col-md-4">
+        <label for="collector_filter" class="form-label">Filtrar por Cobrador:</label>
+        <select class="form-control" id="collector_filter">
           <option value="">Todos los cobradores</option>
-          <?php if (!empty($cobradores_list)) { foreach ($cobradores_list as $c) { ?>
-            <option value="<?php echo $c->id; ?>"><?php echo htmlspecialchars($c->nombre); ?></option>
-          <?php } } ?>
+          <?php foreach ($cobradores_list as $cobrador): ?>
+            <option value="<?php echo $cobrador->id; ?>" <?php echo ($this->session->userdata('user_id') == $cobrador->id) ? 'selected' : ''; ?>>
+              <?php echo isset($cobrador->first_name) && isset($cobrador->last_name) ? $cobrador->first_name . ' ' . $cobrador->last_name : (isset($cobrador->nombre) ? $cobrador->nombre : 'Usuario sin nombre'); ?>
+            </option>
+          <?php endforeach; ?>
         </select>
       </div>
-      <div class="form-group col-md-3 d-flex align-items-end">
-        <div class="d-flex gap-2">
-          <button id="btnExportExcel" class="btn btn-success">
-            <i class="fa fa-file-excel"></i> Exportar Excel
-          </button>
-          <button id="btnExportPDF" class="btn btn-danger">
-            <i class="fa fa-file-pdf"></i> Exportar PDF
-          </button>
-        </div>
+      <div class="col-md-3">
+        <label for="start_date" class="form-label">Fecha Inicio:</label>
+        <input type="date" class="form-control" id="start_date" value="<?php echo $start_date; ?>">
+      </div>
+      <div class="col-md-3">
+        <label for="end_date" class="form-label">Fecha Fin:</label>
+        <input type="date" class="form-control" id="end_date" value="<?php echo $end_date; ?>">
+      </div>
+      <div class="col-md-2 d-flex align-items-end">
+        <button class="btn btn-primary w-100" id="filter_btn">
+          <i class="fas fa-search"></i> Filtrar
+        </button>
       </div>
     </div>
-  </div>
-</div>
 
-<!-- Selector de Usuario -->
-<div class="row mb-4">
-  <div class="col-12">
-    <div class="card shadow-sm">
-      <div class="card-header bg-primary text-white">
-        <h6 class="m-0 font-weight-bold">Filtrar por Usuario Cobrador</h6>
-      </div>
-      <div class="card-body">
-        <div class="form-row">
-          <div class="form-group col-md-6">
-            <label for="user_selector" class="font-weight-bold">Seleccionar Usuario:</label>
-            <select class="form-control" id="user_selector">
-              <option value="">Todos los usuarios</option>
-              <?php
-              $this->load->model('user_m');
-              $active_users = $this->user_m->get_active_users();
-              foreach ($active_users as $user) {
-                echo '<option value="' . $user->id . '">' . htmlspecialchars($user->first_name . ' ' . $user->last_name) . '</option>';
-              }
-              ?>
-            </select>
-          </div>
-          <div class="form-group col-md-6 d-flex align-items-end">
-            <button type="button" class="btn btn-primary" id="btn_filter_user">
-              <i class="fas fa-filter"></i> Aplicar Filtro
-            </button>
-          </div>
-        </div>
-      </div>
+    <!-- Tabla de detalles de comisiones con DataTables -->
+    <div class="table-responsive">
+      <table class="table table-bordered" id="commissionsTable" width="100%" cellspacing="0">
+        <thead class="table-dark">
+          <tr>
+            <th class="text-center">
+              <input type="checkbox" id="selectAll" title="Seleccionar todos">
+            </th>
+            <th>Cliente</th>
+            <th>Cédula</th>
+            <th>Préstamo</th>
+            <th>Monto Original</th>
+            <th>Progreso</th>
+            <th>Pagos Realizados</th>
+            <th>Interés Pagado</th>
+            <th>Comisión 40%</th>
+            <th>Último Pago</th>
+            <th>Estado Comisión</th>
+          </tr>
+        </thead>
+        <tbody id="commissionsTableBody">
+          <!-- Los datos se cargarán dinámicamente por AJAX -->
+        </tbody>
+      </table>
     </div>
-  </div>
-</div>
 
-<!-- Información Detallada por Usuario -->
-<div class="row mb-4" id="user_details_section" style="display: none;">
-  <div class="col-12">
-    <div class="card shadow-sm border-left-info">
-      <div class="card-header bg-info text-white">
-        <h6 class="m-0 font-weight-bold">Información de Cobranzas por Usuario</h6>
-      </div>
-      <div class="card-body">
-        <div id="user_collection_details">
-          <!-- Los detalles se cargarán dinámicamente aquí -->
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Filtros de Fecha para Reportes Avanzados -->
-<div class="row mb-4">
-  <div class="col-12">
-    <div class="card shadow">
-      <div class="card-header py-3">
-        <h6 class="m-0 font-weight-bold text-primary">Filtros de Reportes Avanzados</h6>
-      </div>
-      <div class="card-body">
-        <form method="GET" action="" id="advancedFiltersForm">
-          <div class="form-row align-items-end">
-            <div class="col-md-4 mb-2">
-              <label for="start_date">Fecha de Inicio</label>
-              <input type="date" class="form-control" id="start_date" name="start_date" value="<?php echo htmlspecialchars($start_date ?? ''); ?>">
-            </div>
-            <div class="col-md-4 mb-2">
-              <label for="end_date">Fecha de Fin</label>
-              <input type="date" class="form-control" id="end_date" name="end_date" value="<?php echo htmlspecialchars($end_date ?? ''); ?>">
-            </div>
-            <div class="col-md-4 mb-2">
-              <button type="submit" class="btn btn-primary btn-block">Aplicar Filtros</button>
-            </div>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Análisis de Rendimiento por Categorías -->
-<div class="row mb-4">
-  <div class="col-12">
-    <div class="card shadow">
-      <div class="card-header py-3 bg-success text-white">
-        <h6 class="m-0 font-weight-bold">📊 Análisis de Rendimiento por Categorías</h6>
-      </div>
-      <div class="card-body">
-        <div class="row">
-          <!-- Top Registradores de Clientes -->
-          <div class="col-md-4">
-            <div class="card border-left-success shadow-sm h-100">
-              <div class="card-header py-2">
-                <h6 class="m-0 font-weight-bold text-success">👥 Top Registradores</h6>
-              </div>
-              <div class="card-body">
-                <div class="table-responsive">
-                  <table class="table table-sm">
-                    <thead class="table-success">
-                      <tr>
-                        <th>Usuario</th>
-                        <th class="text-right">Clientes</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <?php if (!empty($user_performance['registrations'])) { ?>
-                        <?php foreach (array_slice($user_performance['registrations'], 0, 5) as $user) { ?>
-                        <tr>
-                          <td><?php echo htmlspecialchars($user->user_name); ?></td>
-                          <td class="text-right badge badge-success"><?php echo number_format($user->clients_registered, 0, ',', '.'); ?></td>
-                        </tr>
-                        <?php } ?>
-                      <?php } else { ?>
-                        <tr><td colspan="2" class="text-center text-muted">Sin datos</td></tr>
-                      <?php } ?>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Top Cobradores -->
-          <div class="col-md-4">
-            <div class="card border-left-info shadow-sm h-100">
-              <div class="card-header py-2">
-                <h6 class="m-0 font-weight-bold text-info">💰 Top Cobradores</h6>
-              </div>
-              <div class="card-body">
-                <div class="table-responsive">
-                  <table class="table table-sm">
-                    <thead class="table-info">
-                      <tr>
-                        <th>Usuario</th>
-                        <th class="text-right">Cobranzas</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <?php if (!empty($user_performance['collections'])) { ?>
-                        <?php foreach (array_slice($user_performance['collections'], 0, 5) as $user) { ?>
-                        <tr>
-                          <td><?php echo htmlspecialchars($user->user_name); ?></td>
-                          <td class="text-right badge badge-info"><?php echo number_format($user->collections_count, 0, ',', '.'); ?></td>
-                        </tr>
-                        <?php } ?>
-                      <?php } else { ?>
-                        <tr><td colspan="2" class="text-center text-muted">Sin datos</td></tr>
-                      <?php } ?>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Alertas de Cobranzas Pendientes -->
-          <div class="col-md-4">
-            <div class="card border-left-warning shadow-sm h-100">
-              <div class="card-header py-2">
-                <h6 class="m-0 font-weight-bold text-warning">⚠️ Pendientes por Cobrar</h6>
-              </div>
-              <div class="card-body">
-                <div class="table-responsive">
-                  <table class="table table-sm">
-                    <thead class="table-warning">
-                      <tr>
-                        <th>Usuario</th>
-                        <th class="text-right">Pendientes</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <?php if (!empty($user_performance['pending'])) { ?>
-                        <?php foreach (array_slice($user_performance['pending'], 0, 5) as $user) { ?>
-                        <tr>
-                          <td><?php echo htmlspecialchars($user->user_name); ?></td>
-                          <td class="text-right badge badge-warning"><?php echo number_format($user->pending_collections, 0, ',', '.'); ?></td>
-                        </tr>
-                        <?php } ?>
-                      <?php } else { ?>
-                        <tr><td colspan="2" class="text-center text-muted">Sin datos</td></tr>
-                      <?php } ?>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-
-
-<!-- Navegación entre módulos de reportes -->
-<div class="row mb-4">
-  <div class="col-12">
-    <div class="card shadow">
-      <div class="card-header py-3 bg-dark text-white">
-        <h6 class="m-0 font-weight-bold">📊 Módulos de Reportes Disponibles</h6>
-      </div>
-      <div class="card-body">
-        <div class="row">
-          <div class="col-md-3 mb-2">
-            <a href="<?php echo base_url('admin/reports'); ?>" class="btn btn-outline-primary btn-block">
-              <i class="fas fa-chart-bar"></i><br>Reportes Generales
-            </a>
-          </div>
-          <div class="col-md-3 mb-2">
-            <a href="<?php echo base_url('admin/reports/interest_commissions'); ?>" class="btn btn-outline-warning btn-block">
-              <i class="fas fa-coins"></i><br>Comisiones 40% Intereses
-            </a>
-          </div>
-          <div class="col-md-3 mb-2">
-            <a href="<?php echo base_url('admin/customers/overdue'); ?>" class="btn btn-outline-danger btn-block">
-              <i class="fas fa-exclamation-triangle"></i><br>Clientes Vencidos
-            </a>
-          </div>
-          <div class="col-md-3 mb-2">
-            <a href="<?php echo base_url('admin/dashboard'); ?>" class="btn btn-outline-success btn-block">
-              <i class="fas fa-tachometer-alt"></i><br>Dashboard
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Estadísticas de Comisiones -->
-<div class="row mb-4">
-  <div class="col-xl-8 col-lg-7">
-    <div class="card shadow-sm border-0">
-      <div class="card-header bg-primary text-white fw-bold">
-        Estadísticas de Comisiones (40%)
-      </div>
-      <div class="card-body">
-        <canvas id="commissionChart" width="400" height="200"></canvas>
-      </div>
-    </div>
-  </div>
-  <div class="col-xl-4 col-lg-5">
-    <div class="card border-0 shadow-sm p-3">
-      <h6 class="fw-bold text-secondary mb-2">Totales Generales</h6>
-      <p><strong>Total Cobrado:</strong> <span id="total_cobrado">$0</span></p>
-      <p><strong>Total en Comisiones (40%):</strong> <span id="total_comisiones">$0</span></p>
-      <p><strong>Número de Cobros:</strong> <span id="total_cobros">0</span></p>
-      <hr>
-      <a href="<?php echo base_url('admin/reports/interest_commissions'); ?>" class="btn btn-warning btn-sm btn-block">
-        <i class="fas fa-coins"></i> Ver Comisiones de Intereses (40%)
-      </a>
-    </div>
-  </div>
-</div>
-
-<!-- Tarjetas de Resumen de Cobranza -->
-<?php if ($cobranza_totals): ?>
-<div class="row mb-4">
-  <div class="col-xl-3 col-md-6 mb-4">
-    <div class="card border-left-primary shadow h-100 py-2">
-      <div class="card-body">
-        <div class="row no-gutters align-items-center">
-          <div class="col mr-2">
-            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Cobros</div>
-            <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $cobranza_totals['total_cobros']->total_cobros ?? 0; ?></div>
-          </div>
-          <div class="col-auto">
-            <i class="fas fa-cash-register fa-2x text-gray-300"></i>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-xl-3 col-md-6 mb-4">
-    <div class="card border-left-success shadow h-100 py-2">
-      <div class="card-body">
-        <div class="row no-gutters align-items-center">
-          <div class="col mr-2">
-            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Cobros por Usuario</div>
-            <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $cobranza_totals['cobros_por_usuario'] ?? 0; ?></div>
-          </div>
-          <div class="col-auto">
-            <i class="fas fa-users fa-2x text-gray-300"></i>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-xl-3 col-md-6 mb-4">
-    <div class="card border-left-info shadow h-100 py-2">
-      <div class="card-body">
-        <div class="row no-gutters align-items-center">
-          <div class="col mr-2">
-            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Pagos Completos</div>
-            <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $cobranza_totals['pagos_completos'] ?? 0; ?></div>
-          </div>
-          <div class="col-auto">
-            <i class="fas fa-check-circle fa-2x text-gray-300"></i>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-xl-3 col-md-6 mb-4">
-    <div class="card border-left-warning shadow h-100 py-2">
-      <div class="card-body">
-        <div class="row no-gutters align-items-center">
-          <div class="col mr-2">
-            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Pagos Parciales</div>
-            <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $cobranza_totals['pagos_parciales'] ?? 0; ?></div>
-          </div>
-          <div class="col-auto">
-            <i class="fas fa-clock fa-2x text-gray-300"></i>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-<?php endif; ?>
-
-<!-- Tarjeta de Resumen General -->
-<?php if ($cobranza_totals): ?>
-<div class="row mb-4">
-  <div class="col-xl-12">
-    <div class="card border-left-primary shadow h-100 py-2">
-      <div class="card-body">
-        <div class="row no-gutters align-items-center">
-          <div class="col mr-2">
-            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Resumen General de Cobranzas</div>
+    <!-- Resumen y botón de envío -->
+    <div class="row mt-4">
+      <div class="col-md-8">
+        <div class="card border-primary">
+          <div class="card-body">
+            <h6 class="card-title text-primary">
+              <i class="fas fa-calculator"></i> Resumen del Período
+            </h6>
             <div class="row">
-              <div class="col-md-3">
-                <div class="text-xs text-muted">Total Cobros Realizados</div>
-                <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo number_format($cobranza_totals['total_cobros']->total_cobros ?? 0, 0, ',', '.'); ?></div>
+              <div class="col-sm-4">
+                <strong>Total Interés:</strong><br>
+                <span id="total_interest" class="text-success h5">$0</span>
               </div>
-              <div class="col-md-3">
-                <div class="text-xs text-muted">Total Intereses</div>
-                <div class="h5 mb-0 font-weight-bold text-gray-800">$<?php echo number_format($cobranza_totals['total_cobros']->total_recaudado * 0.4 ?? 0, 2, ',', '.'); ?></div>
+              <div class="col-sm-4">
+                <strong>Comisión 40%:</strong><br>
+                <span id="total_commission" class="text-warning h5">$0</span>
               </div>
-              <div class="col-md-3">
-                <div class="text-xs text-muted">Total Comisiones (40%)</div>
-                <div class="h5 mb-0 font-weight-bold text-gray-800">$<?php echo number_format($cobranza_totals['total_cobros']->total_recaudado * 0.4 ?? 0, 2, ',', '.'); ?></div>
-              </div>
-              <div class="col-md-3">
-                <div class="text-xs text-muted">Total Recaudado General</div>
-                <div class="h5 mb-0 font-weight-bold text-gray-800">$<?php echo number_format($cobranza_totals['total_cobros']->total_recaudado ?? 0, 2, ',', '.'); ?></div>
+              <div class="col-sm-4">
+                <strong>Estado:</strong><br>
+                <span id="send_status" class="badge badge-warning">Pendiente</span>
               </div>
             </div>
           </div>
-          <div class="col-auto">
-            <i class="fas fa-chart-line fa-2x text-gray-300"></i>
-          </div>
         </div>
+      </div>
+      <div class="col-md-4">
+        <button class="btn btn-success btn-lg w-100" id="send_commission_btn">
+          <i class="fas fa-paper-plane"></i> Enviar Comisión
+        </button>
+        <small class="text-muted mt-1 d-block">
+          Registra el envío de tu 40% al administrador
+        </small>
       </div>
     </div>
   </div>
 </div>
-<?php endif; ?>
 
-<!-- Incluir Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@latest/dist/Chart.min.js"></script>
 
-<!-- Script para gráficas -->
+<!-- Modal para detalles -->
+<div class="modal fade" id="detailsModal" tabindex="-1" role="dialog" aria-labelledby="detailsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="detailsModalLabel">Detalles de Comisiones</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body" id="detailsModalBody">
+        <!-- Contenido dinámico -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DataTables CSS -->
+<link href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap4.min.css" rel="stylesheet">
+<link href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap4.min.css" rel="stylesheet">
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap4.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap4.min.js"></script>
+
 <script>
+let commissionsTable;
+
 document.addEventListener('DOMContentLoaded', function() {
-  // Cargar datos de comisiones
-  fetch(base_url + 'admin/reports/get_commission_stats')
-    .then(response => response.json())
-    .then(data => {
-      if (data.stats && data.stats.length > 0) {
-        renderCommissionChart(data.stats);
-        updateTotals(data.totals);
+  // Inicializar DataTable
+  commissionsTable = $('#commissionsTable').DataTable({
+    responsive: true,
+    pageLength: 10,
+    lengthMenu: [[10, 20, 50, -1], [10, 20, 50, "Todos"]],
+    language: {
+      url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/es-ES.json',
+      lengthMenu: "Mostrar _MENU_ registros por página",
+      zeroRecords: "No se encontraron resultados",
+      info: "Mostrando página _PAGE_ de _PAGES_",
+      infoEmpty: "No hay registros disponibles",
+      infoFiltered: "(filtrado de _MAX_ registros totales)",
+      search: "Buscar:",
+      paginate: {
+        first: "Primero",
+        last: "Último",
+        next: "Siguiente",
+        previous: "Anterior"
       }
-    })
-    .catch(error => console.error('Error cargando estadísticas:', error));
+    },
+    columnDefs: [
+      { orderable: false, targets: [0] }, // Checkbox column not orderable
+      { orderable: true, targets: [1, 2, 3, 4, 5, 6, 7, 8, 9] },
+      { searchable: true, targets: [1, 2, 3, 4, 5, 6, 7, 8, 9] }, // Skip checkbox column for search
+      { className: "text-center", targets: [0, 4, 5] } // Center align checkbox, progress, and payments columns
+    ],
+    order: [[0, 'asc']],
+    dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>rt<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>'
+  });
 
-  function renderCommissionChart(stats) {
-    const ctx = document.getElementById('commissionChart').getContext('2d');
-    const labels = stats.map(item => item.user_name);
-    const commissions = stats.map(item => parseFloat(item.total_commission));
+  // Cargar datos iniciales
+  loadCommissionData();
 
-    new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'Comisiones (40%)',
-          data: commissions,
-          backgroundColor: 'rgba(54, 162, 235, 0.6)',
-          borderColor: 'rgba(54, 162, 235, 1)',
-          borderWidth: 1
-        }]
-      },
-      options: {
-        responsive: true,
-        plugins: {
-          legend: {
-            position: 'top',
-          },
-          tooltip: {
-            callbacks: {
-              label: function(context) {
-                const stat = stats[context.dataIndex];
-                return [
-                  'Comisión: $' + parseFloat(stat.total_commission).toLocaleString('es-CO'),
-                  'Total Cobrado: $' + parseFloat(stat.total_amount).toLocaleString('es-CO'),
-                  'N° Cobros: ' + stat.num_cobros
-                ];
-              }
-            }
-          }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: {
-              callback: function(value) {
-                return '$' + value.toLocaleString('es-CO');
-              }
-            }
-          }
-        }
-      }
+  // Evento para filtrar
+  document.getElementById('filter_btn').addEventListener('click', function() {
+    loadCommissionData();
+  });
+
+  // También permitir filtrado con Enter en los campos de fecha
+  document.getElementById('start_date').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') loadCommissionData();
+  });
+  document.getElementById('end_date').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') loadCommissionData();
+  });
+  document.getElementById('collector_filter').addEventListener('change', function() {
+    loadCommissionData();
+  });
+
+  // Evento para enviar comisión
+  document.getElementById('send_commission_btn').addEventListener('click', function() {
+    sendCommission();
+  });
+
+
+  // Evento para seleccionar/deseleccionar todos
+  document.getElementById('selectAll').addEventListener('change', function() {
+    const isChecked = this.checked;
+    document.querySelectorAll('.commission-checkbox').forEach(function(checkbox) {
+      checkbox.checked = isChecked;
     });
-  }
-
-  function updateTotals(totals) {
-    if (totals) {
-      document.getElementById('total_cobrado').textContent = '$' + parseFloat(totals.total_amount || 0).toLocaleString('es-CO');
-      document.getElementById('total_comisiones').textContent = '$' + parseFloat(totals.total_commission || 0).toLocaleString('es-CO');
-      document.getElementById('total_cobros').textContent = totals.total_cobros || 0;
-    }
-  }
-
-  // Exportación de comisiones
-  document.getElementById('btnExportExcel').addEventListener('click', function() {
-    const start = document.getElementById('start_date').value;
-    const end = document.getElementById('end_date').value;
-    const collector = document.getElementById('collector_id').value;
-    window.open(base_url + 'admin/reports/export_commissions_excel?start_date=' + start + '&end_date=' + end + '&collector_id=' + collector, '_blank');
+    updateCommissionSummary();
   });
 
-  document.getElementById('btnExportPDF').addEventListener('click', function() {
-    const start = document.getElementById('start_date').value;
-    const end = document.getElementById('end_date').value;
-    const collector = document.getElementById('collector_id').value;
-    window.open(base_url + 'admin/reports/export_commissions_pdf?start_date=' + start + '&end_date=' + end + '&collector_id=' + collector, '_blank');
-  });
+  // Función para cargar datos de comisiones
+  function loadCommissionData() {
+    const collectorId = document.getElementById('collector_filter').value;
+    const startDate = document.getElementById('start_date').value;
+    const endDate = document.getElementById('end_date').value;
 
-  // Funcionalidad de recomendaciones
-  document.addEventListener('click', function(e) {
-    if (e.target.classList.contains('apply-penalties-btn')) {
-      const userId = e.target.getAttribute('data-user-id');
-      const riskLevel = e.target.getAttribute('data-risk-level');
-
-      if (confirm('¿Está seguro de aplicar penalizaciones automáticas a clientes de ' + riskLevel + ' riesgo?')) {
-        fetch(base_url + 'admin/reports/apply_bulk_penalties', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: 'user_id=' + userId + '&risk_level=' + riskLevel
-        })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            alert('Penalizaciones aplicadas exitosamente: ' + data.applied_count + ' clientes');
-            location.reload();
-          } else {
-            alert('Error: ' + data.error);
-          }
-        })
-        .catch(error => {
-          console.error('Error:', error);
-          alert('Error al procesar la solicitud');
-        });
+    fetch('<?php echo base_url('api_commissions.php'); ?>?' + new URLSearchParams({
+      user_id: collectorId || '<?php echo $this->session->userdata('user_id'); ?>',
+      start_date: startDate || '',
+      end_date: endDate || ''
+    }))
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('HTTP error! status: ' + response.status);
       }
-    }
-
-    if (e.target.classList.contains('reassign-clients-btn')) {
-      const fromUsers = e.target.getAttribute('data-from-users');
-
-      if (confirm('¿Está seguro de redistribuir clientes de usuarios de bajo rendimiento?')) {
-        fetch(base_url + 'admin/reports/reassign_clients', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: 'from_user_id=' + fromUsers.split(',')[0] + '&to_user_id=' + '<?php echo $this->session->userdata('user_id'); ?>' + '&client_count=3'
-        })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            alert('Clientes reasignados exitosamente: ' + data.reassigned_count + ' clientes');
-            location.reload();
-          } else {
-            alert('Error: ' + data.error);
-          }
-        })
-        .catch(error => {
-          console.error('Error:', error);
-          alert('Error al procesar la solicitud');
-        });
-      }
-    }
-  });
-
-  // Evento para el selector de usuario
-  document.getElementById('btn_filter_user').addEventListener('click', function() {
-    const userId = document.getElementById('user_selector').value;
-    loadUserDetails(userId);
-    loadChartData(userId);
-  });
-
-  // Cargar datos iniciales para gráficos (sin filtro)
-  loadChartData();
-});
-
-function loadChartData(userId = null) {
-  const userParam = userId ? '&user_id=' + userId : '';
-
-  // Gráfico de pagos por cliente
-  fetch(base_url + 'admin/reports/get_chart_data?type=payments_by_customer' + userParam)
-    .then(response => response.json())
-    .then(data => {
-      if (data && data.length > 0) {
-        renderPaymentsByCustomerChart(data);
-      } else {
-        // Mostrar mensaje cuando no hay datos
-        const ctx = document.getElementById('paymentsByCustomerChart');
-        if (ctx) {
-          const chartCanvas = ctx.getContext('2d');
-          chartCanvas.clearRect(0, 0, ctx.width, ctx.height);
-          chartCanvas.fillStyle = '#999';
-          chartCanvas.font = '16px Arial';
-          chartCanvas.textAlign = 'center';
-          chartCanvas.fillText('No hay datos disponibles', ctx.width / 2, ctx.height / 2);
-        }
-      }
+      return response.json();
     })
-    .catch(error => console.error('Error cargando pagos por cliente:', error));
-
-  // Gráfico de top cobradores
-  fetch(base_url + 'admin/reports/get_chart_data?type=top_collectors' + userParam)
-    .then(response => response.json())
-    .then(data => {
-      if (data && data.length > 0) {
-        renderTopCollectorsChart(data);
-      } else {
-        // Mostrar mensaje cuando no hay datos
-        const ctx = document.getElementById('topCollectorsChart');
-        if (ctx) {
-          const chartCanvas = ctx.getContext('2d');
-          chartCanvas.clearRect(0, 0, ctx.width, ctx.height);
-          chartCanvas.fillStyle = '#999';
-          chartCanvas.font = '16px Arial';
-          chartCanvas.textAlign = 'center';
-          chartCanvas.fillText('No hay datos disponibles', ctx.width / 2, ctx.height / 2);
-        }
-      }
-    })
-    .catch(error => console.error('Error cargando top cobradores:', error));
-
-  // Gráfico de rachas
-  fetch(base_url + 'admin/reports/get_chart_data?type=streaks')
-    .then(response => response.json())
-    .then(data => {
-      if (data && Object.keys(data).length > 0) {
-        renderStreakChart(data);
-      }
-    })
-    .catch(error => console.error('Error cargando rachas:', error));
-
-  // Gráfico de castigos
-  fetch(base_url + 'admin/reports/get_chart_data?type=penalties')
-    .then(response => response.json())
-    .then(data => {
-      if (data && data.length > 0) {
-        renderPenaltiesChart(data);
-      }
-    })
-    .catch(error => console.error('Error cargando castigos:', error));
-}
-
-// Función para cargar detalles de usuario
-function loadUserDetails(userId) {
-  if (!userId) {
-    document.getElementById('user_details_section').style.display = 'none';
-    return;
-  }
-
-  fetch(base_url + 'admin/reports/get_user_collection_details?user_id=' + userId)
-    .then(response => response.json())
-    .then(data => {
-      if (data.error) {
-        console.error('Error:', data.error);
+    .then(response => {
+      if (response.error) {
+        alert('Error: ' + response.error);
         return;
       }
 
-      renderUserDetails(data.collections, data.progress);
-      document.getElementById('user_details_section').style.display = 'block';
+      updateTable(response.clients || [], response.send_status || 'pendiente');
+      updateSummary(response.total_interest || 0, response.total_commission || 0, response.send_status || 'pendiente');
     })
-    .catch(error => console.error('Error cargando detalles de usuario:', error));
-}
+    .catch(error => {
+      console.error('Error:', error);
+      alert('Error al cargar los datos: ' + error.message);
+    });
+  }
 
-// Función para renderizar detalles de usuario
-function renderUserDetails(collections, progress) {
-  const container = document.getElementById('user_collection_details');
+  // Función para actualizar tabla
+  function updateTable(clients, sendStatus) {
+    // Limpiar tabla
+    commissionsTable.clear();
 
-  if (!collections || collections.length === 0) {
-    container.innerHTML = '<div class="alert alert-info">No hay datos de cobranzas para este usuario.</div>';
+    if (clients && clients.length > 0) {
+      clients.forEach(function(client, index) {
+        commissionsTable.row.add([
+          '<input type="checkbox" class="commission-checkbox" data-client-id="' + (client.customer_id || index) + '" data-loan-id="' + client.loan_id + '" data-interest="' + (client.total_interest_paid || 0) + '" data-commission="' + (client.interest_commission_40 || 0) + '">',
+          client.customer_name || client.client_name || '',
+          client.dni || client.client_cedula || '',
+          client.loan_id || '',
+          '$' + formatNumber(client.credit_amount || client.loan_amount || 0),
+          client.progress || '0/0',
+          client.payments_made || client.payments_count || 0,
+          '$' + formatNumber(client.total_interest_paid || 0),
+          '$' + formatNumber(client.interest_commission_40 || 0),
+          client.last_payment_date ? new Date(client.last_payment_date).toLocaleDateString('es-CO') : 'N/A',
+          '<span class="badge ' + getStatusBadge(client.commission_status || 'pendiente') + '">' +
+          getStatusText(client.commission_status || 'pendiente') + '</span>' +
+          (client.commission_status === 'enviado' && client.commission_sent_at ?
+            '<br><small class="text-muted">' + new Date(client.commission_sent_at).toLocaleDateString('es-CO') + '</small>' : '')
+        ]);
+      });
+    }
+
+    // Redibujar tabla
+    commissionsTable.draw();
+
+    // Configurar eventos de checkboxes después de dibujar
+    setupCheckboxEvents();
+  }
+
+  // Función para actualizar resumen
+  function updateSummary(totalInterest, totalCommission, sendStatus) {
+    document.getElementById('total_interest').textContent = '$' + formatNumber(totalInterest || 0);
+    document.getElementById('total_commission').textContent = '$' + formatNumber(totalCommission || 0);
+    const statusElement = document.getElementById('send_status');
+    statusElement.className = 'badge ' + getStatusBadge(sendStatus);
+    statusElement.textContent = getStatusText(sendStatus);
+  }
+
+  // Función para configurar eventos de checkboxes
+  function setupCheckboxEvents() {
+    // Evento para checkboxes individuales
+    document.querySelectorAll('.commission-checkbox').forEach(function(checkbox) {
+      checkbox.addEventListener('change', function() {
+        updateCommissionSummary();
+        updateSelectAllCheckbox();
+      });
+    });
+  }
+
+  // Función para actualizar checkbox "Seleccionar todos"
+  function updateSelectAllCheckbox() {
+    const totalCheckboxes = document.querySelectorAll('.commission-checkbox').length;
+    const checkedCheckboxes = document.querySelectorAll('.commission-checkbox:checked').length;
+    document.getElementById('selectAll').checked = totalCheckboxes > 0 && checkedCheckboxes === totalCheckboxes;
+    document.getElementById('selectAll').indeterminate = checkedCheckboxes > 0 && checkedCheckboxes < totalCheckboxes;
+  }
+
+  // Función para actualizar resumen de comisión basado en selección
+  function updateCommissionSummary() {
+    const selectedCheckboxes = document.querySelectorAll('.commission-checkbox:checked');
+    let totalInterest = 0;
+    let totalCommission = 0;
+
+    selectedCheckboxes.forEach(function(checkbox) {
+      totalInterest += parseFloat(checkbox.getAttribute('data-interest')) || 0;
+      totalCommission += parseFloat(checkbox.getAttribute('data-commission')) || 0;
+    });
+
+    // Actualizar resumen visual
+    document.getElementById('total_interest').textContent = '$' + formatNumber(totalInterest);
+    document.getElementById('total_commission').textContent = '$' + formatNumber(totalCommission);
+
+    // Cambiar texto del botón según selección
+    const sendButton = document.getElementById('send_commission_btn');
+    if (selectedCheckboxes.length > 0) {
+      sendButton.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar Comisión (' + selectedCheckboxes.length + ' seleccionadas)';
+      sendButton.disabled = false;
+    } else {
+      sendButton.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar Comisión';
+      sendButton.disabled = true;
+    }
+  }
+
+// Función para enviar comisión
+function sendCommission() {
+  const selectedCheckboxes = document.querySelectorAll('.commission-checkbox:checked');
+
+  if (selectedCheckboxes.length === 0) {
+    alert('Por favor selecciona al menos una cuota para enviar la comisión.');
     return;
   }
 
-  const user = collections[0];
-  let html = `
-    <div class="row mb-4">
-      <div class="col-md-6">
-        <h5>Resumen de Cobranzas</h5>
-        <p><strong>Usuario:</strong> ${user.user_name}</p>
-        <p><strong>Total de cuotas manejadas:</strong> ${user.total_quotas_collected || 0}</p>
-        <p><strong>Cuotas cobradas:</strong> ${user.quotas_paid || 0}</p>
-        <p><strong>Cuotas pendientes:</strong> ${user.quotas_pending || 0}</p>
-        <p><strong>Total recaudado:</strong> $${parseFloat(user.total_amount_collected || 0).toLocaleString('es-CO')}</p>
-      </div>
-      <div class="col-md-6">
-        <h5>Progreso por Préstamo</h5>
-        <div class="table-responsive">
-          <table class="table table-sm table-striped">
-            <thead>
-              <tr>
-                <th>Cliente</th>
-                <th>Cédula</th>
-                <th>Cuotas</th>
-                <th>Progreso</th>
-              </tr>
-            </thead>
-            <tbody>`;
+  const collectorId = document.getElementById('collector_filter').value || '<?php echo $this->session->userdata('user_id'); ?>';
+  const startDate = document.getElementById('start_date').value;
+  const endDate = document.getElementById('end_date').value;
 
-  if (progress && progress.length > 0) {
-    progress.forEach(item => {
-      const progressPercent = item.total_quotas > 0 ? Math.round((item.paid_quotas / item.total_quotas) * 100) : 0;
-      html += `
-        <tr>
-          <td>${item.customer_name}</td>
-          <td>${item.customer_dni}</td>
-          <td>${item.paid_quotas}/${item.total_quotas}</td>
-          <td>
-            <div class="progress" style="width: 100px;">
-              <div class="progress-bar bg-success" role="progressbar" style="width: ${progressPercent}%">
-                ${progressPercent}%
-              </div>
-            </div>
-          </td>
-        </tr>`;
+  // Recopilar datos de las cuotas seleccionadas
+  const selectedData = [];
+  selectedCheckboxes.forEach(function(checkbox) {
+    selectedData.push({
+      client_id: checkbox.getAttribute('data-client-id'),
+      loan_id: checkbox.getAttribute('data-loan-id'),
+      interest: checkbox.getAttribute('data-interest'),
+      commission: checkbox.getAttribute('data-commission')
     });
-  } else {
-    html += '<tr><td colspan="4">No hay préstamos asociados</td></tr>';
+  });
+
+  const totalCommission = selectedData.reduce((sum, item) => sum + parseFloat(item.commission), 0);
+
+  if (confirm('¿Estás seguro de que deseas enviar la comisión del 40% para las ' + selectedCheckboxes.length + ' cuotas seleccionadas?\n\nMonto total: $' + formatNumber(totalCommission))) {
+    fetch('<?php echo site_url('admin/reports/send_commission'); ?>', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        collector_id: collectorId,
+        start_date: startDate,
+        end_date: endDate,
+        selected_commissions: JSON.stringify(selectedData)
+      })
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('HTTP error! status: ' + response.status);
+      }
+      return response.json();
+    })
+    .then(response => {
+      if (response.success) {
+        alert('¡Comisión enviada exitosamente!\nMonto: $' + formatNumber(totalCommission) + '\nCuotas procesadas: ' + selectedCheckboxes.length);
+        loadCommissionData(); // Recargar datos
+      } else {
+        alert('Error: ' + (response.message || 'Error desconocido'));
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      alert('Error al enviar la comisión: ' + error.message);
+    });
+  }
+}
+
+
+  // Funciones auxiliares
+  function formatNumber(num) {
+    return new Intl.NumberFormat('es-CO').format(num);
   }
 
-  html += `
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>`;
+  function getStatusBadge(status) {
+    return status === 'enviado' ? 'badge-success' : 'badge-warning';
+  }
 
-  container.innerHTML = html;
-}
-
-function renderPaymentsByCustomerChart(data) {
-  const ctx = document.getElementById('paymentsByCustomerChart').getContext('2d');
-  const labels = data.map(item => item.customer_name.length > 15 ? item.customer_name.substring(0, 15) + '...' : item.customer_name);
-  const values = data.map(item => parseInt(item.payments_count));
-
-  new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: 'Número de Pagos',
-        data: values,
-        backgroundColor: 'rgba(54, 162, 235, 0.6)',
-        borderColor: 'rgba(54, 162, 235, 1)',
-        borderWidth: 1
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { position: 'top' },
-        tooltip: {
-          callbacks: {
-            label: function(context) {
-              const item = data[context.dataIndex];
-              return [
-                'Cliente: ' + item.customer_name,
-                'Pagos: ' + item.payments_count,
-                'Total: $' + parseFloat(item.total_paid).toLocaleString('es-CO')
-              ];
-            }
-          }
-        }
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: { precision: 0 }
-        }
-      }
-    }
-  });
-}
-
-function renderTopCollectorsChart(data) {
-  const ctx = document.getElementById('topCollectorsChart').getContext('2d');
-  const labels = data.map(item => item.user_name.length > 15 ? item.user_name.substring(0, 15) + '...' : item.user_name);
-  const values = data.map(item => parseInt(item.payments_count));
-
-  new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: 'Número de Cobranzas',
-        data: values,
-        backgroundColor: 'rgba(255, 99, 132, 0.6)',
-        borderColor: 'rgba(255, 99, 132, 1)',
-        borderWidth: 1
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { position: 'top' },
-        tooltip: {
-          callbacks: {
-            label: function(context) {
-              const item = data[context.dataIndex];
-              return [
-                'Cobrador: ' + item.user_name,
-                'Cobranzas: ' + item.payments_count
-              ];
-            }
-          }
-        }
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: { precision: 0 }
-        }
-      }
-    }
-  });
-}
-
-function renderStreakChart(data) {
-  const ctx = document.getElementById('streakChart').getContext('2d');
-  const labels = Object.keys(data);
-  const values = Object.values(data);
-
-  new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: 'Racha Máxima (cuotas seguidas)',
-        data: values,
-        backgroundColor: 'rgba(75, 192, 192, 0.6)',
-        borderColor: 'rgba(75, 192, 192, 1)',
-        borderWidth: 1
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { position: 'top' },
-        tooltip: {
-          callbacks: {
-            label: function(context) {
-              return 'Racha: ' + values[context.dataIndex] + ' cuotas seguidas';
-            }
-          }
-        }
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: { precision: 0 }
-        }
-      }
-    }
-  });
-}
-
-function renderPenaltiesChart(data) {
-  const ctx = document.getElementById('penaltiesChart').getContext('2d');
-  const labels = data.map(item => item.penalty_reason || 'Sin motivo');
-  const values = data.map(item => parseInt(item.count));
-
-  new Chart(ctx, {
-    type: 'pie',
-    data: {
-      labels: labels,
-      datasets: [{
-        data: values,
-        backgroundColor: [
-          'rgba(255, 99, 132, 0.6)',
-          'rgba(54, 162, 235, 0.6)',
-          'rgba(255, 205, 86, 0.6)',
-          'rgba(75, 192, 192, 0.6)',
-          'rgba(153, 102, 255, 0.6)',
-          'rgba(255, 159, 64, 0.6)'
-        ],
-        borderColor: [
-          'rgba(255, 99, 132, 1)',
-          'rgba(54, 162, 235, 1)',
-          'rgba(255, 205, 86, 1)',
-          'rgba(75, 192, 192, 1)',
-          'rgba(153, 102, 255, 1)',
-          'rgba(255, 159, 64, 1)'
-        ],
-        borderWidth: 1
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { position: 'right' },
-        tooltip: {
-          callbacks: {
-            label: function(context) {
-              const item = data[context.dataIndex];
-              return [
-                'Motivo: ' + (item.penalty_reason || 'Sin motivo'),
-                'Cantidad: ' + item.count,
-                'Monto Total: $' + parseFloat(item.total_amount).toLocaleString('es-CO')
-              ];
-            }
-          }
-        }
-      }
-    }
-  });
-}
+  function getStatusText(status) {
+    return status === 'enviado' ? 'Enviado' : 'Pendiente';
+  }
+});
 </script>
-
-<!-- Filtros y Exportación de Comisiones -->
-<div class="card shadow mb-4">
-  <div class="card-header py-3">
-    <h6 class="m-0 font-weight-bold text-primary">Filtros y Exportación de Comisiones</h6>
-  </div>
-  <div class="card-body">
-    <div class="form-row">
-      <div class="form-group col-md-3">
-        <label class="small mb-1" for="start_date">Fecha Inicio</label>
-        <input type="date" class="form-control" id="start_date">
-      </div>
-      <div class="form-group col-md-3">
-        <label class="small mb-1" for="end_date">Fecha Fin</label>
-        <input type="date" class="form-control" id="end_date">
-      </div>
-      <div class="form-group col-md-3">
-        <label class="small mb-1" for="collector_id">Cobrador</label>
-        <select class="form-control" id="collector_id">
-          <option value="">Todos los cobradores</option>
-          <?php if (!empty($cobradores_list)) { foreach ($cobradores_list as $c) { ?>
-            <option value="<?php echo $c->id; ?>"><?php echo htmlspecialchars($c->nombre); ?></option>
-          <?php } } ?>
-        </select>
-      </div>
-      <div class="form-group col-md-3 d-flex align-items-end">
-        <div class="d-flex gap-2">
-          <button id="btnExportExcel" class="btn btn-success">
-            <i class="fa fa-file-excel"></i> Exportar Excel
-          </button>
-          <button id="btnExportPDF" class="btn btn-danger">
-            <i class="fa fa-file-pdf"></i> Exportar PDF
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-    <!-- Gráfico: Pagos por Cliente -->
-    <div class="mt-4">
-      <h6 class="m-0 font-weight-bold text-primary">Pagos por Cliente (Top 10)</h6>
-      <div class="row">
-        <div class="col-md-8">
-          <canvas id="paymentsByCustomerChart" width="400" height="200"></canvas>
-        </div>
-        <div class="col-md-4">
-          <div class="table-responsive mt-2">
-            <table class="table table-striped table-bordered table-sm" id="tbl_payments_by_customer">
-              <thead class="thead-dark">
-                <tr>
-                  <th>Cliente</th>
-                  <th class="text-right"># Pagos</th>
-                </tr>
-              </thead>
-              <tbody>
-                <?php if (!empty($per_customer_payments)) { foreach (array_slice($per_customer_payments, 0, 10) as $row) { ?>
-                <tr>
-                  <td><?php echo htmlspecialchars($row->customer_name); ?></td>
-                  <td class="text-right"><?php echo (int)$row->payments_count; ?></td>
-                </tr>
-                <?php } } ?>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Gráfico: Usuarios con más cobranzas -->
-    <div class="mt-4">
-      <h6 class="m-0 font-weight-bold text-primary">Usuarios con más Cobranzas (Top 10)</h6>
-      <div class="row">
-        <div class="col-md-8">
-          <canvas id="topCollectorsChart" width="400" height="200"></canvas>
-        </div>
-        <div class="col-md-4">
-          <div class="table-responsive mt-2">
-            <table class="table table-striped table-bordered table-sm" id="tbl_top_collectors">
-              <thead class="thead-dark">
-                <tr>
-                  <th>Usuario</th>
-                  <th class="text-right"># Cobranzas</th>
-                </tr>
-              </thead>
-              <tbody>
-                <?php if (!empty($top_collectors)) { foreach (array_slice($top_collectors, 0, 10) as $row) { ?>
-                <tr>
-                  <td><?php echo htmlspecialchars($row->user_name); ?></td>
-                  <td class="text-right"><?php echo (int)$row->payments_count; ?></td>
-                </tr>
-                <?php } } ?>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Gráfico: Cliente con mayor racha de pagos -->
-    <div class="mt-4">
-      <h6 class="m-0 font-weight-bold text-primary">Clientes con Mayor Racha de Pagos (Top 5)</h6>
-      <div class="row">
-        <div class="col-md-8">
-          <canvas id="streakChart" width="400" height="200"></canvas>
-        </div>
-        <div class="col-md-4">
-          <div class="table-responsive mt-2">
-            <table class="table table-striped table-bordered table-sm" id="tbl_longest_streak">
-              <thead class="thead-dark">
-                <tr>
-                  <th>Cliente</th>
-                  <th class="text-right">Racha Máxima</th>
-                </tr>
-              </thead>
-              <tbody>
-                <?php if (!empty($longest_streak)) { ?>
-                <tr>
-                  <td><?php echo htmlspecialchars($longest_streak['customer_name']); ?></td>
-                  <td class="text-right"><?php echo (int)$longest_streak['max_streak']; ?></td>
-                </tr>
-                <?php } else { ?>
-                <tr>
-                  <td colspan="2">Sin datos de pagos registrados.</td>
-                </tr>
-                <?php } ?>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-
-  </div>
-
-  <!-- Gráfico: Castigos Registrados -->
-  <div class="mt-4">
-    <h6 class="m-0 font-weight-bold text-primary">Distribución de Castigos por Motivo</h6>
-    <div class="row">
-      <div class="col-md-8">
-        <canvas id="penaltiesChart" width="400" height="200"></canvas>
-      </div>
-      <div class="col-md-4">
-        <div class="table-responsive mt-2">
-          <table class="table table-striped table-bordered table-sm" id="tbl_penalties">
-            <thead class="thead-dark">
-              <tr>
-                <th>Motivo</th>
-                <th class="text-right">Cantidad</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php if (!empty($penalties)) {
-                $penalty_counts = [];
-                foreach ($penalties as $p) {
-                  $reason = $p->penalty_reason ?: 'Sin motivo';
-                  if (!isset($penalty_counts[$reason])) {
-                    $penalty_counts[$reason] = 0;
-                  }
-                  $penalty_counts[$reason]++;
-                }
-                foreach ($penalty_counts as $reason => $count) { ?>
-              <tr>
-                <td><?php echo htmlspecialchars($reason); ?></td>
-                <td class="text-right"><?php echo $count; ?></td>
-              </tr>
-              <?php } } else { ?>
-              <tr>
-                <td colspan="2">No hay castigos registrados.</td>
-              </tr>
-              <?php } ?>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>

@@ -51,3 +51,8 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 $route['default_controller'] = 'user/login';
 $route['404_override'] = '';
 $route['translate_uri_dashes'] = FALSE;
+
+// Rutas específicas para APIs JSON
+$route['admin/reports/get_user_interest_details'] = 'admin/reports/get_user_interest_details';
+$route['admin/reports/get_collector_commissions_summary'] = 'admin/reports/get_collector_commissions_summary';
+$route['admin/reports/send_commission'] = 'admin/reports/send_commission';

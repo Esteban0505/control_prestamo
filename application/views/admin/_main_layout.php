@@ -65,7 +65,7 @@
             <footer class="sticky-footer bg-white">
                 <div class="container my-auto">
                     <div class="copyright text-center my-auto">
-                        <span>Copyright &copy; Esteban 2025</span>
+                        <span>Copyright &copy; Creditos Valu 2025</span>
                     </div>
                 </div>
             </footer>
@@ -108,10 +108,15 @@
         if (!window.location.href.includes('/admin/config') && $('#dataTable').length > 0) {
           $('#dataTable').DataTable({
             "order": [],
+            "language": {
+              "url": "//cdn.datatables.net/plug-ins/1.10.25/i18n/Spanish.json"
+            },
+            "pageLength": 25,
+            "responsive": true
           });
         }
       });
-    </script> 
+    </script>
 
     <script type="text/javascript">
         base_url = '<?= base_url();?>';

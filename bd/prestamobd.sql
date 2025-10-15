@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: 127.0.0.1
--- Tiempo de generación: 14-10-2025 a las 23:27:47
+-- Tiempo de generación: 16-10-2025 a las 01:38:35
 -- Versión del servidor: 10.4.14-MariaDB
 -- Versión de PHP: 7.4.11
 
@@ -1078,6 +1078,38 @@ INSERT INTO `collector_commissions` (`id`, `user_id`, `loan_id`, `loan_item_id`,
 -- --------------------------------------------------------
 
 --
+-- Estructura de tabla para la tabla `collector_reports`
+--
+
+CREATE TABLE `collector_reports` (
+  `id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `report_date` date NOT NULL,
+  `total_interest` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `commission_40` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `total_collected` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `clients_handled` int(11) NOT NULL DEFAULT 0,
+  `loans_handled` int(11) NOT NULL DEFAULT 0,
+  `status` enum('pending','submitted','approved','rejected') NOT NULL DEFAULT 'pending',
+  `submitted_at` datetime DEFAULT NULL,
+  `approved_at` datetime DEFAULT NULL,
+  `approved_by` int(11) DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+--
+-- Volcado de datos para la tabla `collector_reports`
+--
+
+INSERT INTO `collector_reports` (`id`, `user_id`, `report_date`, `total_interest`, `commission_40`, `total_collected`, `clients_handled`, `loans_handled`, `status`, `submitted_at`, `approved_at`, `approved_by`, `notes`, `created_at`, `updated_at`) VALUES
+(1, 1, '2025-10-15', '4741000.00', '1896400.00', '97791178.48', 6, 15, 'submitted', '2025-10-15 19:40:36', NULL, NULL, NULL, '2025-10-15 17:40:36', '2025-10-15 17:40:36'),
+(2, 1, '2025-10-15', '4741000.00', '1896400.00', '97791178.48', 6, 15, 'submitted', '2025-10-15 19:41:14', NULL, NULL, NULL, '2025-10-15 17:41:14', '2025-10-15 17:41:14');
+
+-- --------------------------------------------------------
+
+--
 -- Estructura de tabla para la tabla `customers`
 --
 
@@ -1130,13 +1162,13 @@ INSERT INTO `customers` (`id`, `dni`, `first_name`, `last_name`, `gender`, `depa
 (48, '675768909', 'wsdsnd', 'dsdsdsd', 'masculino', 0, '', '', '', '', '', 2, NULL, '', 0, 'especial', NULL),
 (49, '111111113', 'fernando', 'aaaaaaa', 'masculino', 1, '', '', 'asasa', '23232323', 'asasa', 4, NULL, 'asas', 0, 'especial', NULL),
 (50, '1152675687', 'Esteban', 'Sebas', 'masculino', 2, NULL, '020102', '', '', '', 3, NULL, '', 0, 'normal', NULL),
-(51, '34334343434', 'dobby', 'marin', 'masculino', 0, '', '', '', '', '', 1, NULL, '', 1, 'normal', NULL),
+(51, '34334343434', 'dobby', 'marin', 'masculino', 0, '', '', '', '', '', 1, NULL, '', 0, 'normal', NULL),
 (52, '7687578587', 'pepito', 'peptiro', 'masculino', 0, '', '', '', '', '', 4, NULL, '', 0, 'normal', NULL),
 (53, '98754676', 'sebas sebas', 'sebas', 'masculino', 0, '', '', '', '', '', 3, NULL, '', 0, 'normal', NULL),
 (54, '7364826348', 'dsafdsfdsf', 'dsafsfsdf', 'femenino', 0, '', '', '', '', '', 2, NULL, '', 0, 'normal', NULL),
 (55, '27637228', 'gdsjfsdkjfd', 'kahfkjshfkjsdf', 'masculino', 0, '', '', '', '', '', 3, NULL, '', 1, 'normal', NULL),
-(56, '1152715464', 'Esteban', 'Marin', 'masculino', 0, '', '', '', '', '', 2, NULL, '', 1, 'normal', NULL),
-(57, '55464646464', 'Esteban', 'Esteban', 'masculino', 0, '', '', '', '', '', 1, NULL, '', 0, 'normal', NULL);
+(56, '1152715464', 'Esteban', 'Marin', 'masculino', 0, '', '', '', '', 'prueba@gmail.com', 2, NULL, '', 1, 'normal', NULL),
+(57, '55464646464', 'Esteban', 'Esteban', 'masculino', 0, '', '', '', '2324243432', 'prueba@gmail.com', 1, NULL, '', 0, 'normal', NULL);
 
 -- --------------------------------------------------------
 
@@ -1246,13 +1278,15 @@ INSERT INTO `loans` (`id`, `num_prestamo`, `customer_id`, `credit_amount`, `bala
 (85, 85, 51, '5000000.00', '0.00', '57.00', 15, '2853287.39', 'mensual', 'francesa', 1, '2025-10-13', b'0', 1, NULL, NULL),
 (86, 86, 10, '1200000.00', '16081511.54', '36.00', 15, '436332.45', 'mensual', 'francesa', 1, '2025-10-14', b'0', 1, NULL, NULL),
 (87, 87, 10, '1300000.00', '6368736.82', '57.00', 6, '741000.00', 'mensual', 'estaunidense', 1, '2025-10-14', b'0', 1, NULL, NULL),
-(88, 88, 51, '5000000.00', '30526676.63', '47.00', 8, '2350000.00', 'mensual', 'estaunidense', 1, '2025-10-14', b'1', 1, NULL, NULL),
+(88, 88, 51, '5000000.00', '30526676.63', '47.00', 8, '2350000.00', 'mensual', 'estaunidense', 1, '2025-10-14', b'0', 1, NULL, NULL),
 (89, 89, 56, '50000.00', '0.00', '10.00', 12, '7338.17', 'mensual', 'francesa', 1, '2025-10-14', b'1', 1, NULL, NULL),
 (90, 90, 57, '500000.00', '0.00', '30.00', 5, '150000.00', 'mensual', 'estaunidense', 1, '2025-10-14', b'0', 1, NULL, NULL),
 (91, 91, 57, '1200000.00', '0.00', '40.00', 4, '480000.00', 'mensual', 'estaunidense', 1, '2025-10-14', b'0', 1, NULL, NULL),
 (92, 92, 57, '500000.00', '0.00', '12.00', 5, '60000.00', 'mensual', 'estaunidense', 1, '2025-08-13', b'0', 1, NULL, NULL),
 (93, 93, 55, '600000.00', '0.00', '12.00', 5, '166445.84', 'mensual', 'francesa', 1, '2025-10-14', b'1', 1, NULL, NULL),
-(94, 94, 49, '500000.00', '0.00', '12.00', 12, '60000.00', 'mensual', 'estaunidense', 1, '2025-10-14', b'0', 1, NULL, NULL);
+(94, 94, 49, '500000.00', '0.00', '12.00', 12, '60000.00', 'mensual', 'estaunidense', 1, '2025-10-14', b'0', 1, NULL, NULL),
+(95, 95, 13, '500000.00', '0.00', '12.00', 12, '60000.00', 'mensual', 'estaunidense', 1, '2025-10-15', b'0', 1, NULL, NULL),
+(96, 96, 13, '50000.00', '0.00', '12.00', 12, '500.00', 'mensual', 'estaunidense', 1, '2025-10-15', b'0', 1, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -2563,8 +2597,8 @@ INSERT INTO `loan_items` (`id`, `loan_id`, `date`, `num_quota`, `fee_amount`, `c
 (2412, 88, '2026-01-14', 3, '2350000.00', '0.00', '0.00', '2350000.00', '2350000.00', '0.00', '0.00', NULL, '2025-10-14 17:43:20', b'0', 1),
 (2413, 88, '2026-02-14', 4, '2350000.00', '0.00', '0.00', '2350000.00', '1650000.00', '0.00', '0.00', NULL, '2025-10-14 18:14:15', b'0', 1),
 (2414, 88, '2026-03-14', 5, '2350000.00', '0.00', '0.00', '2350000.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 18:14:15', b'0', 1),
-(2415, 88, '2026-04-14', 6, '2350000.00', '0.00', '0.00', '2350000.00', '0.00', '4887303.96', '0.00', NULL, '2025-10-14 04:41:03', b'1', NULL),
-(2416, 88, '2026-05-14', 7, '2350000.00', '0.00', '0.00', '2350000.00', '0.00', '4887303.96', '0.00', NULL, '2025-10-14 04:41:03', b'1', NULL),
+(2415, 88, '2026-04-14', 6, '2350000.00', '0.00', '0.00', '2350000.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 23:10:00', b'0', 1),
+(2416, 88, '2026-05-14', 7, '2350000.00', '0.00', '0.00', '2350000.00', '0.00', '0.00', '0.00', NULL, '2025-10-15 22:59:19', b'0', 1),
 (2417, 88, '2026-06-14', 8, '7350000.00', '5000000.00', '0.00', '2350000.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 04:25:30', b'1', NULL),
 (2418, 89, '2025-11-14', 1, '7338.17', '2338.17', '0.00', '5000.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 17:51:51', b'0', 2),
 (2419, 89, '2025-12-14', 2, '7338.17', '2571.98', '0.00', '4766.18', '0.00', '0.00', '0.00', NULL, '2025-10-14 17:51:51', b'0', 2),
@@ -2608,7 +2642,31 @@ INSERT INTO `loan_items` (`id`, `loan_id`, `date`, `num_quota`, `fee_amount`, `c
 (2457, 94, '2026-07-14', 9, '60000.00', '0.00', '0.00', '60000.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 20:30:51', b'0', 4),
 (2458, 94, '2026-08-14', 10, '60000.00', '0.00', '0.00', '60000.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 20:30:51', b'0', 4),
 (2459, 94, '2026-09-14', 11, '60000.00', '0.00', '0.00', '60000.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 20:30:51', b'0', 4),
-(2460, 94, '2026-10-14', 12, '560000.00', '500000.00', '0.00', '60000.00', '0.00', '0.00', '0.00', NULL, '2025-10-15 03:30:45', b'0', 4);
+(2460, 94, '2026-10-14', 12, '560000.00', '500000.00', '0.00', '60000.00', '0.00', '0.00', '0.00', NULL, '2025-10-15 03:30:45', b'0', 4),
+(2461, 95, '2025-11-15', 1, '60000.00', '0.00', '0.00', '60000.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 22:15:43', b'0', 1),
+(2462, 95, '2025-12-15', 2, '60000.00', '0.00', '0.00', '60000.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 22:15:43', b'0', 1),
+(2463, 95, '2026-01-15', 3, '60000.00', '0.00', '0.00', '60000.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 22:15:43', b'0', 1),
+(2464, 95, '2026-02-15', 4, '60000.00', '0.00', '0.00', '60000.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 22:15:43', b'0', 1),
+(2465, 95, '2026-03-15', 5, '60000.00', '0.00', '0.00', '60000.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 22:15:43', b'0', 1),
+(2466, 95, '2026-04-15', 6, '60000.00', '0.00', '0.00', '60000.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 22:15:43', b'0', 1),
+(2467, 95, '2026-05-15', 7, '60000.00', '0.00', '0.00', '60000.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 22:15:43', b'0', 1),
+(2468, 95, '2026-06-15', 8, '60000.00', '0.00', '0.00', '60000.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 22:15:43', b'0', 1),
+(2469, 95, '2026-07-15', 9, '60000.00', '0.00', '0.00', '60000.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 22:15:43', b'0', 1),
+(2470, 95, '2026-08-15', 10, '60000.00', '0.00', '0.00', '60000.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 22:15:43', b'0', 1),
+(2471, 95, '2026-09-15', 11, '60000.00', '0.00', '0.00', '60000.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 22:15:43', b'0', 1),
+(2472, 95, '2026-10-15', 12, '560000.00', '500000.00', '0.00', '60000.00', '0.00', '0.00', '0.00', NULL, '2025-10-15 05:15:27', b'0', 1),
+(2473, 96, '2025-11-15', 1, '500.00', '0.00', '0.00', '500.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 22:25:38', b'0', 1),
+(2474, 96, '2025-12-15', 2, '500.00', '0.00', '0.00', '500.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 22:25:38', b'0', 1),
+(2475, 96, '2026-01-15', 3, '500.00', '0.00', '0.00', '500.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 22:25:38', b'0', 1),
+(2476, 96, '2026-02-15', 4, '500.00', '0.00', '0.00', '500.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 22:25:38', b'0', 1),
+(2477, 96, '2026-03-15', 5, '500.00', '0.00', '0.00', '500.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 22:25:38', b'0', 1),
+(2478, 96, '2026-04-15', 6, '500.00', '0.00', '0.00', '500.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 22:25:38', b'0', 1),
+(2479, 96, '2026-05-15', 7, '500.00', '0.00', '0.00', '500.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 22:25:38', b'0', 1),
+(2480, 96, '2026-06-15', 8, '500.00', '0.00', '0.00', '500.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 22:25:38', b'0', 1),
+(2481, 96, '2026-07-15', 9, '500.00', '0.00', '0.00', '500.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 22:25:38', b'0', 1),
+(2482, 96, '2026-08-15', 10, '500.00', '0.00', '0.00', '500.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 22:25:38', b'0', 1),
+(2483, 96, '2026-09-15', 11, '500.00', '0.00', '0.00', '500.00', '0.00', '0.00', '0.00', NULL, '2025-10-14 22:25:38', b'0', 1),
+(2484, 96, '2026-10-15', 12, '50500.00', '50000.00', '0.00', '500.00', '0.00', '0.00', '0.00', NULL, '2025-10-15 05:25:33', b'0', 1);
 
 -- --------------------------------------------------------
 
@@ -2815,9 +2873,9 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `first_name`, `last_name`, `email`, `password`, `perfil`, `role`, `estado`, `ultimo_login`, `fecha`) VALUES
-(1, 'Esteban', 'Marin', 'admin@gmail.com', '$2y$10$ZIGlfNVODq5qwAmF86lH9eT/o.mJfA5rWd9GubFyfwItu3c4.XoHm', 'admin', 'admin', 1, '2025-10-14 21:45:00', '2025-10-14 19:45:00'),
-(2, 'Dobby', 'Marin', 'dobby@admin.com', '$2y$10$LcfIlPiFa6hZhaGUt/41E.cYU8oRq.MF7iEXjxZ8gtJ2qL/UBG8Li', 'operador', 'operador', 1, '2025-10-14 20:41:18', '2025-10-14 18:41:18'),
-(3, 'Sebas', 'Marin', 'sebas@gmail.com', '$2y$10$mvteXUT4iBnVeXQW/OhQqeGjKe73ou7CMyOnrXWszIFPAnveJ/kSi', 'viewer', '', 1, '2025-10-03 00:51:52', '2025-10-02 22:52:07'),
+(1, 'Esteban', 'Marin', 'admin@gmail.com', '$2y$10$ZIGlfNVODq5qwAmF86lH9eT/o.mJfA5rWd9GubFyfwItu3c4.XoHm', 'admin', 'admin', 1, '2025-10-16 00:07:12', '2025-10-15 22:07:12'),
+(2, 'Dobby', 'Marin', 'dobby@admin.com', '$2y$10$LcfIlPiFa6hZhaGUt/41E.cYU8oRq.MF7iEXjxZ8gtJ2qL/UBG8Li', 'operador', 'operador', 1, '2025-10-15 20:26:24', '2025-10-15 18:26:24'),
+(3, 'Sebas', 'Marin', 'sebas@gmail.com', '$2y$10$mvteXUT4iBnVeXQW/OhQqeGjKe73ou7CMyOnrXWszIFPAnveJ/kSi', 'operador', 'operador', 1, '2025-10-03 00:51:52', '2025-10-15 23:37:41'),
 (4, 'Pepito', 'Marin', 'pepe@gmail.com', '$2y$10$T36CfrJktcFUr6YkvXEA/uxBRZ9j21qH.L7X8BTJBudJRsuET5SIm', 'operador', 'operador', 1, '2025-10-09 02:01:18', '2025-10-09 00:04:23');
 
 -- --------------------------------------------------------
@@ -2849,22 +2907,22 @@ INSERT INTO `user_permissions` (`id`, `user_id`, `permission_name`, `value`) VAL
 (0, 1, 'sidebar_back', 1),
 (0, 2, 'coins', 0),
 (0, 2, 'config', 1),
-(0, 2, 'customers', 0),
-(0, 2, 'dashboard', 0),
+(0, 2, 'customers', 1),
+(0, 2, 'dashboard', 1),
 (0, 2, 'loans', 1),
 (0, 2, 'payments', 1),
-(0, 2, 'reports', 0),
-(0, 2, 'sidebar', 0),
-(0, 2, 'sidebar_back', 0),
+(0, 2, 'reports', 1),
+(0, 2, 'sidebar', 1),
+(0, 2, 'sidebar_back', 1),
 (0, 3, 'coins', 0),
-(0, 3, 'config', 1),
+(0, 3, 'config', 0),
 (0, 3, 'customers', 0),
 (0, 3, 'dashboard', 1),
-(0, 3, 'loans', 0),
+(0, 3, 'loans', 1),
 (0, 3, 'payments', 1),
 (0, 3, 'reports', 1),
 (0, 3, 'sidebar', 1),
-(0, 3, 'sidebar_back', 0),
+(0, 3, 'sidebar_back', 1),
 (0, 4, 'coins', 1),
 (0, 4, 'config', 0),
 (0, 4, 'customers', 1),
@@ -2884,6 +2942,15 @@ INSERT INTO `user_permissions` (`id`, `user_id`, `permission_name`, `value`) VAL
 --
 ALTER TABLE `collector_commissions`
   ADD PRIMARY KEY (`id`);
+
+--
+-- Indices de la tabla `collector_reports`
+--
+ALTER TABLE `collector_reports`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `user_id` (`user_id`),
+  ADD KEY `status` (`status`),
+  ADD KEY `report_date` (`report_date`);
 
 --
 -- Indices de la tabla `customers`
@@ -2944,6 +3011,12 @@ ALTER TABLE `collector_commissions`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1007;
 
 --
+-- AUTO_INCREMENT de la tabla `collector_reports`
+--
+ALTER TABLE `collector_reports`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
 -- AUTO_INCREMENT de la tabla `customers`
 --
 ALTER TABLE `customers`
@@ -2953,13 +3026,13 @@ ALTER TABLE `customers`
 -- AUTO_INCREMENT de la tabla `loans`
 --
 ALTER TABLE `loans`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=95;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=97;
 
 --
 -- AUTO_INCREMENT de la tabla `loan_items`
 --
 ALTER TABLE `loan_items`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2461;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2485;
 
 --
 -- AUTO_INCREMENT de la tabla `payments`
