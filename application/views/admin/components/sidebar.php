@@ -92,8 +92,10 @@
     <div id="collapseReportes" class="collapse" aria-labelledby="headingUtilities" data-parent="#accordionSidebar">
       <div class="bg-dark py-2 collapse-inner rounded" style="background:#343a40;">
         <a class="collapse-item" href="<?php echo site_url('admin/reports'); ?>" style="color:#ffffff;">Comisiones por Cobrador</a>
-        <a class="collapse-item" href="<?php echo site_url('admin/reports/dates'); ?>" style="color:#ffffff;">Administrador</a>
+        <a class="collapse-item" href="<?php echo site_url('admin/reports/dates'); ?>" style="color:#ffffff;">Estado de Comisiones</a>
         <a class="collapse-item" href="<?php echo site_url('admin/reports/customers'); ?>" style="color:#ffffff;">General x Cliente</a>
+        <a class="collapse-item" href="<?php echo site_url('admin/reports/dates_pdf'); ?>" style="color:#ffffff;">PDF por Fechas</a>
+        <a class="collapse-item" href="<?php echo site_url('admin/reports/customer_pdf'); ?>" style="color:#ffffff;">PDF por Cliente</a>
       </div>
     </div>
   </li>
@@ -108,8 +110,9 @@
     </a>
     <div id="collapseConfiguracion" class="collapse" aria-labelledby="headingUtilities" data-parent="#accordionSidebar">
       <div class="bg-dark py-2 collapse-inner rounded" style="background:#2c3e50;">
-        <a class="collapse-item" href="<?php echo site_url('admin/config'); ?>"style="color:#ecf0f1;">Editar datos</a>
-        <a class="collapse-item" href="<?php echo site_url('admin/config/change_password'); ?>"style="color:#ecf0f1;">Cambiar Contraseña</a>
+        <a class="collapse-item" href="<?php echo site_url('admin/config'); ?>" style="color:#ecf0f1;">Gestión de Usuarios</a>
+        <a class="collapse-item" href="<?php echo site_url('admin/config/change_password'); ?>" style="color:#ecf0f1;">Cambiar Contraseña</a>
+        <a class="collapse-item" href="<?php echo site_url('admin/coins'); ?>" style="color:#ecf0f1;">Monedas</a>
       </div>
     </div>
   </li>

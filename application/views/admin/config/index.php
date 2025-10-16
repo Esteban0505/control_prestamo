@@ -325,3 +325,312 @@
 </div>
 
 <!-- ✅ SCRIPT MEJORADO CON DEBUGGING -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Config page loaded');
+
+    // Obtener tokens CSRF
+    let csrfName = '';
+    let csrfHash = '';
+
+    // Función para obtener tokens CSRF
+    function getCsrfTokens() {
+        return fetch('<?php echo site_url('admin/config/get_csrf_tokens'); ?>', {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                csrfName = data.csrf_name;
+                csrfHash = data.csrf_hash;
+                console.log('CSRF tokens obtained:', csrfName, csrfHash);
+            }
+            return data;
+        })
+        .catch(error => {
+            console.error('Error getting CSRF tokens:', error);
+        });
+    }
+
+    // Inicializar tokens CSRF
+    getCsrfTokens();
+
+    // Evento para botones de permisos
+    document.querySelectorAll('.btn-permissions').forEach(button => {
+        button.addEventListener('click', function() {
+            const userId = this.getAttribute('data-id');
+            const userName = this.getAttribute('data-name');
+            const userRole = this.getAttribute('data-role');
+
+            console.log('Opening permissions modal for user:', userId, userName, userRole);
+
+            // Actualizar modal
+            document.getElementById('permission-user-name').textContent = userName;
+            document.getElementById('permission-user-role').textContent = userRole;
+            document.getElementById('user-role-select').value = userRole;
+
+            // Cargar permisos del usuario
+            loadUserPermissions(userId);
+
+            // Mostrar modal
+            $('#permissionsModal').modal('show');
+        });
+    });
+
+    // Función para cargar permisos del usuario
+    function loadUserPermissions(userId) {
+        console.log('Loading permissions for user:', userId);
+
+        fetch('<?php echo site_url('admin/config/get_permissions'); ?>', {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: new URLSearchParams({
+                [csrfName]: csrfHash,
+                'user_id': userId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Permissions loaded:', data);
+
+            if (data.success) {
+                // Limpiar checkboxes
+                document.querySelectorAll('input[name="permisos[]"]').forEach(checkbox => {
+                    checkbox.checked = false;
+                });
+
+                // Marcar permisos del usuario
+                if (data.permissions && Array.isArray(data.permissions)) {
+                    data.permissions.forEach(permission => {
+                        const checkbox = document.getElementById('permission-' + permission.permission_name);
+                        if (checkbox) {
+                            checkbox.checked = permission.value == 1;
+                        }
+                    });
+                }
+
+                // Actualizar tokens CSRF
+                if (data.csrf_name && data.csrf_hash) {
+                    csrfName = data.csrf_name;
+                    csrfHash = data.csrf_hash;
+                }
+            } else {
+                alert('Error al cargar permisos: ' + (data.message || 'Error desconocido'));
+            }
+        })
+        .catch(error => {
+            console.error('Error loading permissions:', error);
+            alert('Error al cargar permisos');
+        });
+    }
+
+    // Evento para cambio de rol
+    document.getElementById('user-role-select').addEventListener('change', function() {
+        const selectedRole = this.value;
+        console.log('Role changed to:', selectedRole);
+
+        // Aplicar permisos por defecto del rol
+        const defaultPermissions = {
+            'admin': ['dashboard', 'sidebar', 'sidebar_back', 'customers', 'coins', 'loans', 'payments', 'reports', 'config'],
+            'operador': ['dashboard', 'sidebar', 'customers', 'loans', 'payments', 'reports'],
+            'viewer': ['dashboard', 'reports']
+        };
+
+        // Limpiar checkboxes
+        document.querySelectorAll('input[name="permisos[]"]').forEach(checkbox => {
+            checkbox.checked = false;
+        });
+
+        // Marcar permisos por defecto del rol
+        if (defaultPermissions[selectedRole]) {
+            defaultPermissions[selectedRole].forEach(permission => {
+                const checkbox = document.getElementById('permission-' + permission);
+                if (checkbox) {
+                    checkbox.checked = true;
+                }
+            });
+        }
+    });
+
+    // Evento para guardar permisos
+    document.getElementById('formPermissions').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const formData = new FormData(this);
+        const userId = document.querySelector('.btn-permissions:focus')?.getAttribute('data-id') ||
+                      document.querySelector('.btn-permissions[data-id]')?.getAttribute('data-id');
+
+        if (!userId) {
+            alert('Error: No se pudo identificar el usuario');
+            return;
+        }
+
+        // Preparar datos de permisos
+        const permissions = [];
+        document.querySelectorAll('input[name="permisos[]"]:checked').forEach(checkbox => {
+            permissions.push({
+                permission_name: checkbox.value,
+                value: 1
+            });
+        });
+
+        // Agregar permisos no marcados como 0
+        document.querySelectorAll('input[name="permisos[]"]:not(:checked)').forEach(checkbox => {
+            permissions.push({
+                permission_name: checkbox.value,
+                value: 0
+            });
+        });
+
+        const submitData = {
+            [csrfName]: csrfHash,
+            'user_id': userId,
+            'role': document.getElementById('user-role-select').value,
+            'permissions': permissions
+        };
+
+        console.log('Saving permissions:', submitData);
+
+        // Mostrar loading
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.textContent;
+        submitBtn.textContent = 'Guardando...';
+        submitBtn.disabled = true;
+
+        fetch('<?php echo site_url('admin/config/save_permissions'); ?>', {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(submitData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Permissions saved:', data);
+
+            if (data.success) {
+                alert('Permisos guardados exitosamente');
+                $('#permissionsModal').modal('hide');
+
+                // Actualizar tokens CSRF
+                if (data.csrf_name && data.csrf_hash) {
+                    csrfName = data.csrf_name;
+                    csrfHash = data.csrf_hash;
+                }
+
+                // Recargar página para reflejar cambios
+                location.reload();
+            } else {
+                alert('Error al guardar permisos: ' + (data.message || 'Error desconocido'));
+            }
+        })
+        .catch(error => {
+            console.error('Error saving permissions:', error);
+            alert('Error al guardar permisos');
+        })
+        .finally(() => {
+            // Restaurar botón
+            submitBtn.textContent = originalText;
+            submitBtn.disabled = false;
+        });
+    });
+
+    // Evento para botones de estado
+    document.querySelectorAll('.btn-toggle-state').forEach(button => {
+        button.addEventListener('click', function() {
+            const userId = this.getAttribute('data-id');
+            const currentState = this.getAttribute('data-current-state');
+
+            if (confirm('¿Estás seguro de que deseas cambiar el estado de este usuario?')) {
+                toggleUserState(userId);
+            }
+        });
+    });
+
+    // Función para cambiar estado del usuario
+    function toggleUserState(userId) {
+        console.log('Toggling state for user:', userId);
+
+        fetch('<?php echo site_url('admin/config/ajax_toggle_status'); ?>', {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: new URLSearchParams({
+                [csrfName]: csrfHash,
+                'user_id': userId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('State toggled:', data);
+
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert('Error: ' + (data.message || 'Error desconocido'));
+            }
+        })
+        .catch(error => {
+            console.error('Error toggling state:', error);
+            alert('Error al cambiar el estado');
+        });
+    }
+
+    // Evento para botones de eliminar
+    document.querySelectorAll('.btn-delete-user').forEach(button => {
+        button.addEventListener('click', function() {
+            const userId = this.getAttribute('data-id');
+            const userName = this.getAttribute('data-name');
+
+            document.getElementById('user-name').textContent = userName;
+            document.getElementById('confirm-delete').setAttribute('data-id', userId);
+
+            $('#deleteModal').modal('show');
+        });
+    });
+
+    // Evento para confirmar eliminación
+    document.getElementById('confirm-delete').addEventListener('click', function() {
+        const userId = this.getAttribute('data-id');
+
+        fetch('<?php echo site_url('admin/config/ajax_delete'); ?>', {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: new URLSearchParams({
+                [csrfName]: csrfHash,
+                'user_id': userId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('User deleted:', data);
+
+            if (data.success) {
+                alert(data.message);
+                $('#deleteModal').modal('hide');
+                location.reload();
+            } else {
+                alert('Error: ' + (data.message || 'Error desconocido'));
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting user:', error);
+            alert('Error al eliminar usuario');
+        });
+    });
+});
+</script>
