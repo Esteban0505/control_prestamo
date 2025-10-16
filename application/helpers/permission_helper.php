@@ -93,13 +93,25 @@ if (!function_exists('can_view')) {
           error_log("[DIAGNOSTIC] can_view: no granular permission found for '$section', using role defaults");
           $default_permissions = [
               'admin' => [
-                  'dashboard' => true, 'sidebar' => true, 'sidebar_back' => true, 'customers' => true, 'coins' => true, 'loans' => true, 'payments' => true, 'reports' => true, 'config' => true
+                  'dashboard' => true, 'sidebar' => true, 'sidebar_back' => true,
+                  'customers' => true, 'customers_list' => true, 'customers_overdue' => true,
+                  'coins' => true, 'loans' => true, 'payments' => true,
+                  'reports' => true, 'reports_commissions' => true, 'reports_admin' => true, 'reports_general' => true,
+                  'config' => true
               ],
               'operador' => [
-                  'dashboard' => true, 'sidebar' => true, 'sidebar_back' => true, 'customers' => true, 'coins' => true, 'loans' => true, 'payments' => true, 'reports' => true, 'config' => false
+                  'dashboard' => true, 'sidebar' => true, 'sidebar_back' => true,
+                  'customers' => true, 'customers_list' => true, 'customers_overdue' => true,
+                  'coins' => true, 'loans' => true, 'payments' => true,
+                  'reports' => true, 'reports_commissions' => true, 'reports_admin' => true, 'reports_general' => true,
+                  'config' => false
               ],
               'viewer' => [
-                  'dashboard' => true, 'sidebar' => true, 'sidebar_back' => true, 'customers' => false, 'coins' => false, 'loans' => false, 'payments' => false, 'reports' => true, 'config' => false
+                  'dashboard' => true, 'sidebar' => true, 'sidebar_back' => true,
+                  'customers' => false, 'customers_list' => false, 'customers_overdue' => false,
+                  'coins' => false, 'loans' => false, 'payments' => false,
+                  'reports' => true, 'reports_commissions' => true, 'reports_admin' => false, 'reports_general' => true,
+                  'config' => false
               ]
           ];
 
