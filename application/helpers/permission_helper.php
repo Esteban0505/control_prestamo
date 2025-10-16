@@ -93,13 +93,13 @@ if (!function_exists('can_view')) {
           error_log("[DIAGNOSTIC] can_view: no granular permission found for '$section', using role defaults");
           $default_permissions = [
               'admin' => [
-                  'dashboard' => true, 'customers' => true, 'loans' => true, 'payments' => true, 'reports' => true, 'config' => true
+                  'dashboard' => true, 'sidebar' => true, 'sidebar_back' => true, 'customers' => true, 'coins' => true, 'loans' => true, 'payments' => true, 'reports' => true, 'config' => true
               ],
               'operador' => [
-                  'dashboard' => true, 'customers' => true, 'loans' => true, 'payments' => true, 'reports' => true, 'config' => false
+                  'dashboard' => true, 'sidebar' => true, 'sidebar_back' => true, 'customers' => true, 'coins' => true, 'loans' => true, 'payments' => true, 'reports' => true, 'config' => false
               ],
               'viewer' => [
-                  'dashboard' => true, 'customers' => false, 'loans' => false, 'payments' => false, 'reports' => true, 'config' => false
+                  'dashboard' => true, 'sidebar' => true, 'sidebar_back' => true, 'customers' => false, 'coins' => false, 'loans' => false, 'payments' => false, 'reports' => true, 'config' => false
               ]
           ];
 
