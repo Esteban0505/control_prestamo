@@ -19,38 +19,52 @@ class Customers extends MY_Controller {
 
   public function edit($id = NULL)
   {
+    log_message('debug', '[DEBUG] Iniciando método edit() - ID: ' . ($id ?: 'NULL'));
+
     if ($id) {
       $data['customer'] = $this->customers_m->get($id);
       $data['provinces'] = $this->customers_m->get_editProvinces($data['customer']->department_id);
       $data['districts'] = $this->customers_m->get_editDistricts($data['customer']->province_id);
+      log_message('debug', '[DEBUG] Editando cliente existente - ID: ' . $id . ', DNI: ' . $data['customer']->dni);
     } else {
       $data['customer'] = $this->customers_m->get_new();
+      log_message('debug', '[DEBUG] Creando nuevo cliente');
     }
 
     $data['departments'] = $this->customers_m->get_departments();
     $data['users'] = $this->customers_m->get_active_users();
 
     $rules = $this->customers_m->customer_rules;
-   
+
     $this->form_validation->set_rules($rules);
 
+    log_message('debug', '[DEBUG] Datos POST recibidos: ' . json_encode($this->input->post()));
+
     if ($this->form_validation->run() == TRUE) {
+      log_message('debug', '[DEBUG] Validación del formulario PASÓ');
 
       $cst_data = $this->customers_m->array_from_post(['dni','first_name', 'last_name', 'gender', 'department_id', 'province_id', 'district_id', 'mobile', 'address', 'phone', 'user_id', 'ruc', 'company', 'tipo_cliente']);
+      log_message('debug', '[DEBUG] Datos extraídos del POST: ' . json_encode($cst_data));
 
       $save_result = $this->customers_m->save($cst_data, $id);
+      log_message('debug', '[DEBUG] Resultado del save: ' . ($save_result === false ? 'FALSE (DNI duplicado)' : 'TRUE'));
 
       if ($save_result === false) {
         $this->session->set_flashdata('error', '⚠️ El número de cédula ingresado ya existe. Verifica la información antes de continuar.');
+        log_message('debug', '[DEBUG] Error: DNI duplicado detectado');
       } else {
         if ($id) {
           $this->session->set_flashdata('msg', 'Cliente editado correctamente');
+          log_message('debug', '[DEBUG] Cliente editado exitosamente - ID: ' . $id);
         } else {
           $this->session->set_flashdata('msg', 'Cliente agregado correctamente');
+          log_message('debug', '[DEBUG] Cliente creado exitosamente');
         }
         redirect('admin/customers');
       }
 
+    } else {
+      log_message('debug', '[DEBUG] Validación del formulario FALLÓ - Errores: ' . json_encode($this->form_validation->error_array()));
     }
 
     $data['subview'] = 'admin/customers/edit';

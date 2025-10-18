@@ -128,6 +128,50 @@ class Payments extends CI_Controller {
        show_error('Tipo de pago inválido. Debe ser: full, interest, capital, both o custom.', 400);
        return;
      }
+
+     // Validaciones adicionales para tipos de pago específicos
+     if ($tipo_pago === 'custom') {
+       if (empty($custom_amount) || !is_numeric($custom_amount) || $custom_amount <= 0) {
+         log_message('error', 'TICKET: Monto personalizado inválido: ' . $custom_amount);
+         show_error('Para pago personalizado, debe especificar un monto válido mayor a 0.', 400);
+         return;
+       }
+       if (empty($custom_payment_type) || !in_array($custom_payment_type, ['cuota', 'interes', 'capital', 'liquidation'])) {
+         log_message('error', 'TICKET: Tipo de aplicación personalizado inválido: ' . $custom_payment_type);
+         show_error('Para pago personalizado, debe seleccionar dónde aplicar el pago (cuota, interés, capital o liquidación).', 400);
+         return;
+       }
+
+       // Validación específica para liquidación anticipada
+       if ($custom_payment_type === 'liquidation') {
+         // Verificar que se haya seleccionado solo una cuota
+         if (count($quota_ids) !== 1) {
+           log_message('error', 'TICKET: Liquidación anticipada requiere seleccionar exactamente una cuota');
+           show_error('Para liquidación anticipada, debe seleccionar exactamente una cuota.', 400);
+           return;
+         }
+
+         // Calcular el saldo total pendiente desde la cuota seleccionada
+         $selected_quota_id = $quota_ids[0];
+         $selected_quota = $this->payments_m->get_loan_item($selected_quota_id);
+         if (!$selected_quota) {
+           log_message('error', 'TICKET: Cuota seleccionada no encontrada: ' . $selected_quota_id);
+           show_error('La cuota seleccionada no existe.', 400);
+           return;
+         }
+
+         // Calcular saldo total pendiente (balance de la cuota seleccionada)
+         $total_pending_balance = $selected_quota->balance;
+         if ($custom_amount < $total_pending_balance) {
+           log_message('error', 'TICKET: Monto insuficiente para liquidación - requerido: ' . $total_pending_balance . ', proporcionado: ' . $custom_amount);
+           show_error('Para liquidación anticipada, el monto debe ser al menos ' . number_format($total_pending_balance, 2, ',', '.') . ' (saldo pendiente).', 400);
+           return;
+         }
+
+         log_message('debug', 'TICKET: Liquidación anticipada validada - cuota: ' . $selected_quota_id . ', saldo pendiente: ' . $total_pending_balance . ', monto pagado: ' . $custom_amount);
+       }
+     }
+
      log_message('debug', 'TICKET: ========== VALIDACIÓN PASADA ==========');
 
      // DIAGNÓSTICO: Verificar todos los datos POST
@@ -146,6 +190,13 @@ class Payments extends CI_Controller {
      log_message('debug', 'TICKET: Tipo de quota_ids: ' . gettype($quota_ids));
      log_message('debug', 'TICKET: Monto del pago: ' . $amount);
      log_message('debug', 'TICKET: Tipo de pago seleccionado: ' . $tipo_pago);
+
+     // DEBUG: Verificar si quota_ids está vacío o no es array
+     if (empty($quota_ids) || !is_array($quota_ids)) {
+       log_message('error', 'TICKET: ERROR CRÍTICO - No se seleccionaron cuotas para procesar');
+       show_error('Debe seleccionar al menos una cuota para procesar el pago.', 400);
+       return;
+     }
 
      // Filtrar solo cuotas pendientes (status=1) antes de procesar
      log_message('debug', 'TICKET: ========== INICIANDO FILTRO DE CUOTAS PENDIENTES ==========');
@@ -170,39 +221,137 @@ class Payments extends CI_Controller {
      log_message('debug', 'TICKET: Cuotas pendientes filtradas: ' . json_encode($pending_quota_ids));
      log_message('debug', 'TICKET: Número de cuotas pendientes: ' . count($pending_quota_ids));
 
-     // Para pagos personalizados, NO marcar las cuotas como pagadas completamente
-     // Solo actualizar si NO es pago personalizado
-     if (!($tipo_pago === 'custom' && !empty($custom_amount))) {
-       // LOG ADICIONAL: Verificar estado de cuotas antes de actualizar
-       if (!empty($pending_quota_ids)) {
-         log_message('debug', 'TICKET: ========== ACTUALIZANDO CUOTAS A PAGADAS ==========');
-         log_message('debug', 'TICKET: Verificando estado de cuotas ANTES de actualizar:');
-         foreach ($pending_quota_ids as $q) {
-           $quota_info = $this->payments_m->get_loan_item($q);
-           log_message('debug', 'TICKET: Cuota ID ' . $q . ' - Estado actual: ' . ($quota_info ? $quota_info->status : 'NO ENCONTRADA'));
-         }
+     // Lógica de procesamiento de pagos según tipo
+     $processed_quotas = [];
+     $total_amount = 0;
 
-         log_message('debug', 'TICKET: Iniciando actualización de cuotas...');
+     if ($tipo_pago === 'full') {
+       // Pago completo: procesar todas las cuotas seleccionadas normalmente
+       log_message('debug', 'TICKET: Procesando pago completo');
+       $processed_quotas = $this->process_full_payment($quota_ids, $user_id);
+       $total_amount = $amount;
+     } elseif ($tipo_pago === 'interest') {
+       // Solo interés: aplicar pago solo a intereses de las cuotas seleccionadas
+       log_message('debug', 'TICKET: Procesando pago solo interés');
+       $processed_quotas = $this->process_interest_only_payment($pending_quota_ids, $user_id);
+       $total_amount = $this->calculate_total_from_processed($processed_quotas);
+     } elseif ($tipo_pago === 'capital') {
+       // Pago a capital: aplicar pago solo a capital de las cuotas seleccionadas
+       log_message('debug', 'TICKET: Procesando pago a capital');
+       $processed_quotas = $this->process_capital_only_payment($pending_quota_ids, $user_id);
+       $total_amount = $this->calculate_total_from_processed($processed_quotas);
+     } elseif ($tipo_pago === 'both') {
+       // Interés y capital: aplicar pago proporcionalmente a ambas partes
+       log_message('debug', 'TICKET: Procesando pago interés y capital');
+       $processed_quotas = $this->process_interest_capital_payment($pending_quota_ids, $user_id);
+       $total_amount = $this->calculate_total_from_processed($processed_quotas);
+     } elseif ($tipo_pago === 'custom') {
+       // Monto personalizado: aplicar monto con prioridad interés-capital o liquidación
+       log_message('debug', 'TICKET: Procesando pago personalizado - tipo: ' . $custom_payment_type . ', monto: ' . $custom_amount);
+       $processed_quotas = $this->process_custom_payment($pending_quota_ids, $custom_amount, $custom_payment_type, $user_id);
+       $total_amount = $custom_amount;
+     }
+
+     log_message('debug', 'TICKET: Cuotas procesadas: ' . json_encode($processed_quotas));
+     log_message('debug', 'TICKET: Monto total calculado: ' . $total_amount);
+
+     // Asignar processed_quotas a data para usar en la vista del ticket
+     $data['processed_quotas'] = $processed_quotas;
+
+     // DEBUG: Log de processed_quotas antes de enviar a vista
+     log_message('debug', 'TICKET: processed_quotas que se envían a vista: ' . json_encode($processed_quotas));
+
+     // CORRECCIÓN CRÍTICA: Para pagos normales, processed_quotas está vacío, usar quotasPaid
+     if (empty($processed_quotas) && !empty($data['quotasPaid'])) {
+       log_message('debug', 'TICKET: processed_quotas vacío, creando desde quotasPaid');
+       $processed_quotas = [];
+       foreach ($data['quotasPaid'] as $quota) {
+         $processed_quotas[] = [
+           'quota_id' => is_object($quota) ? $quota->id : $quota['id'],
+           'amount' => is_object($quota) ? $quota->fee_amount : $quota['fee_amount'],
+           'type' => 'normal'
+         ];
+       }
+       $data['processed_quotas'] = $processed_quotas;
+       log_message('debug', 'TICKET: processed_quotas creado desde quotasPaid: ' . json_encode($processed_quotas));
+     }
+
+     // Inicializar variables para la vista del ticket
+     $data['show_payment_distribution'] = false;
+     $data['is_liquidation'] = false;
+
+     // Determinar si mostrar distribución de pagos
+     if (!empty($processed_quotas) && isset($processed_quotas[0]['type'])) {
+         if ($processed_quotas[0]['type'] === 'custom_priority') {
+             $data['show_payment_distribution'] = true;
+         }
+     }
+
+     // Determinar si es liquidación anticipada
+     if (!empty($custom_payment_type) && $custom_payment_type === 'liquidation') {
+         $data['is_liquidation'] = true;
+     }
+
+     // DEBUG: Log de variables de vista
+     log_message('debug', 'TICKET: Variables enviadas a vista - show_payment_distribution: ' . ($data['show_payment_distribution'] ? 'true' : 'false') . ', is_liquidation: ' . ($data['is_liquidation'] ? 'true' : 'false'));
+
+     // Filtrar solo cuotas pendientes (status=1) antes de procesar
+     log_message('debug', 'TICKET: ========== INICIANDO FILTRO DE CUOTAS PENDIENTES ==========');
+     $pending_quota_ids = [];
+     if (is_array($quota_ids) && !empty($quota_ids)) {
+       log_message('debug', 'TICKET: Procesando ' . count($quota_ids) . ' cuotas del POST');
+       foreach ($quota_ids as $q) {
+         log_message('debug', 'TICKET: Verificando cuota ID ' . $q . ' - obteniendo info de BD');
+         $quota_info = $this->payments_m->get_loan_item($q);
+         log_message('debug', 'TICKET: Cuota ID ' . $q . ' - Info obtenida: ' . json_encode($quota_info));
+         if ($quota_info && $quota_info->status == 1) {
+           $pending_quota_ids[] = $q;
+           log_message('debug', 'TICKET: Cuota ID ' . $q . ' - Estado: PENDIENTE (se procesará)');
+         } else {
+           log_message('debug', 'TICKET: Cuota ID ' . $q . ' - Estado: ' . ($quota_info ? $quota_info->status : 'NO ENCONTRADA') . ' (se ignora)');
+         }
+       }
+     } else {
+       log_message('debug', 'TICKET: quota_ids no es array válido o está vacío - no se procesarán cuotas');
+     }
+
+     log_message('debug', 'TICKET: Cuotas pendientes filtradas: ' . json_encode($pending_quota_ids));
+     log_message('debug', 'TICKET: Número de cuotas pendientes: ' . count($pending_quota_ids));
+
+     // Para tipos de pago que no son 'full' o 'custom', marcar cuotas como pagadas según corresponda
+     if ($tipo_pago === 'full') {
+       // Para pago completo, marcar todas las cuotas seleccionadas como pagadas
+       if (!empty($quota_ids)) {
+         log_message('debug', 'TICKET: ========== ACTUALIZANDO CUOTAS A PAGADAS (FULL PAYMENT) ==========');
+         foreach ($quota_ids as $q) {
+           log_message('debug', 'TICKET: Actualizando cuota ID: ' . $q . ' con status=0, paid_by=' . $user_id . ', pay_date=' . date('Y-m-d H:i:s'));
+           $this->payments_m->update_quota(['status' => 0, 'paid_by' => $user_id, 'pay_date' => date('Y-m-d H:i:s')], $q);
+           log_message('debug', 'TICKET: Cuota ID ' . $q . ' actualizada exitosamente');
+         }
+       }
+     } elseif ($tipo_pago === 'both') {
+       // Para pago de interés y capital, marcar cuotas como completamente pagadas
+       if (!empty($pending_quota_ids)) {
+         log_message('debug', 'TICKET: ========== ACTUALIZANDO CUOTAS A PAGADAS (BOTH PAYMENT) ==========');
          foreach ($pending_quota_ids as $q) {
            log_message('debug', 'TICKET: Actualizando cuota ID: ' . $q . ' con status=0, paid_by=' . $user_id . ', pay_date=' . date('Y-m-d H:i:s'));
            $this->payments_m->update_quota(['status' => 0, 'paid_by' => $user_id, 'pay_date' => date('Y-m-d H:i:s')], $q);
            log_message('debug', 'TICKET: Cuota ID ' . $q . ' actualizada exitosamente');
          }
-
-         // LOG ADICIONAL: Verificar estado de cuotas DESPUÉS de actualizar
-         log_message('debug', 'TICKET: Verificando estado de cuotas DESPUÉS de actualizar:');
-         foreach ($pending_quota_ids as $q) {
-           $quota_info = $this->payments_m->get_loan_item($q);
-           log_message('debug', 'TICKET: Cuota ID ' . $q . ' - Estado después: ' . ($quota_info ? $quota_info->status : 'NO ENCONTRADA'));
-         }
-       } else {
-         log_message('debug', 'TICKET: No hay cuotas pendientes para actualizar');
        }
-     } else {
-       log_message('debug', 'TICKET: Pago personalizado - NO se marcan cuotas como pagadas completamente, solo se procesa el monto personalizado');
-       // Para pagos personalizados, NO marcar las cuotas como pagadas completamente
-       // El procesamiento del pago personalizado se hace más abajo
+     } elseif ($tipo_pago === 'capital') {
+       // Para pago solo a capital, marcar cuotas como pagadas si el capital se completa
+       if (!empty($pending_quota_ids)) {
+         log_message('debug', 'TICKET: ========== ACTUALIZANDO CUOTAS PARA CAPITAL PAYMENT ==========');
+         foreach ($pending_quota_ids as $q) {
+           log_message('debug', 'TICKET: Actualizando cuota ID: ' . $q . ' con status=0 (capital completo), paid_by=' . $user_id . ', pay_date=' . date('Y-m-d H:i:s'));
+           $this->payments_m->update_quota(['status' => 0, 'paid_by' => $user_id, 'pay_date' => date('Y-m-d H:i:s')], $q);
+           log_message('debug', 'TICKET: Cuota ID ' . $q . ' actualizada exitosamente');
+         }
+       }
      }
+     // Para 'interest' y 'custom', no marcar cuotas como pagadas completamente
+     // Solo actualizar campos específicos según el tipo de pago
 
      if (!empty($pending_quota_ids)) {
        log_message('debug', 'TICKET: ========== PROCESANDO PAGOS SEGÚN TIPO_PAGO ==========');
@@ -429,50 +578,68 @@ class Payments extends CI_Controller {
          $this->payments_m->update_cstLoan($this->input->post('loan_id'), $this->input->post('customer_id'));
        }
 
-       // Para pagos personalizados, obtener todas las cuotas del préstamo ya que pueden estar parcialmente pagadas
-       if ($tipo_pago === 'custom' && !empty($custom_amount)) {
-         log_message('debug', 'TICKET: Pago personalizado - obteniendo TODAS las cuotas del préstamo (incluyendo procesadas)');
-
-         // Para pagos personalizados, necesitamos obtener TODAS las cuotas, no solo las pendientes
-         // porque las cuotas procesadas pueden seguir teniendo status=1 pero con balances actualizados
-         $this->db->select('id, loan_id, date as fecha_pago, num_quota as n_cuota, fee_amount as monto_cuota, interest_amount, capital_amount, balance, status as estado, interest_paid, capital_paid, pay_date');
-         $this->db->where('loan_id', $this->input->post('loan_id'));
-         $this->db->order_by('num_quota', 'asc');
-         $all_quotas = $this->db->get('loan_items')->result();
-
-         // Convertir al formato esperado
-         $data['quotasPaid'] = [];
-         foreach ($all_quotas as $quota) {
-           $data['quotasPaid'][] = [
-             'id' => $quota->id,
-             'loan_id' => $quota->loan_id,
-             'date' => $quota->fecha_pago,
-             'num_quota' => $quota->n_cuota,
-             'fee_amount' => $quota->monto_cuota,
-             'interest_amount' => $quota->interest_amount,
-             'capital_amount' => $quota->capital_amount,
-             'balance' => $quota->balance,
-             'status' => $quota->estado,
-             'interest_paid' => $quota->interest_paid,
-             'capital_paid' => $quota->capital_paid,
-             'pay_date' => $quota->pay_date
-           ];
-         }
-
-         log_message('debug', 'TICKET: TODAS las cuotas del préstamo obtenidas: ' . count($data['quotasPaid']));
-
-         // Para pagos personalizados, marcar la cuota como pagada parcialmente (status permanece 1)
-         // pero actualizar pay_date para registro
-         if (!empty($pending_quota_ids)) {
-           foreach ($pending_quota_ids as $quota_id) {
-             $this->payments_m->update_quota([
-               'paid_by' => $user_id,
-               'pay_date' => date('Y-m-d H:i:s')
-             ], $quota_id);
-             log_message('debug', 'TICKET: Cuota ' . $quota_id . ' marcada con pay_date para pago personalizado');
+         // Para pagos personalizados, obtener todas las cuotas del préstamo ya que pueden estar parcialmente pagadas
+         if ($tipo_pago === 'custom' && !empty($custom_amount)) {
+           log_message('debug', 'TICKET: Pago personalizado - obteniendo TODAS las cuotas del préstamo (incluyendo procesadas)');
+ 
+           // Para pagos personalizados, necesitamos obtener TODAS las cuotas, no solo las pendientes
+           // porque las cuotas procesadas pueden seguir teniendo status=1 pero con balances actualizados
+           $this->db->select('id, loan_id, date as fecha_pago, num_quota as n_cuota, fee_amount as monto_cuota, interest_amount, capital_amount, balance, status as estado, interest_paid, capital_paid, pay_date, extra_payment');
+           $this->db->where('loan_id', $this->input->post('loan_id'));
+           $this->db->order_by('num_quota', 'asc');
+           $all_quotas = $this->db->get('loan_items')->result();
+ 
+           // Para liquidación anticipada, mostrar solo hasta la cuota pagada
+           if ($custom_payment_type === 'liquidation' && !empty($processed_quotas) && isset($processed_quotas[0]['liquidation'])) {
+             $paid_quota_id = $processed_quotas[0]['quota_id'];
+             $paid_quota_info = $this->payments_m->get_loan_item($paid_quota_id);
+             $max_quota_num = $paid_quota_info ? $paid_quota_info->num_quota : null;
+ 
+             // Filtrar cuotas: solo hasta la cuota pagada
+             $filtered_quotas = [];
+             foreach ($all_quotas as $quota) {
+               if ($quota->n_cuota <= $max_quota_num) {
+                 $filtered_quotas[] = $quota;
+               }
+             }
+             $all_quotas = $filtered_quotas;
+             log_message('debug', 'TICKET: Liquidación anticipada - mostrando solo hasta cuota ' . $max_quota_num);
            }
-         }
-       } else {
+ 
+           // Convertir al formato esperado
+           $data['quotasPaid'] = [];
+           foreach ($all_quotas as $quota) {
+             $data['quotasPaid'][] = [
+               'id' => $quota->id,
+               'loan_id' => $quota->loan_id,
+               'date' => $quota->fecha_pago,
+               'num_quota' => $quota->n_cuota,
+               'fee_amount' => $quota->monto_cuota,
+               'interest_amount' => $quota->interest_amount,
+               'capital_amount' => $quota->capital_amount,
+               'balance' => $quota->balance,
+               'status' => $quota->estado,
+               'interest_paid' => $quota->interest_paid,
+               'capital_paid' => $quota->capital_paid,
+               'pay_date' => $quota->pay_date,
+               'extra_payment' => $quota->extra_payment ?? 0
+             ];
+           }
+ 
+           log_message('debug', 'TICKET: TODAS las cuotas del préstamo obtenidas: ' . count($data['quotasPaid']));
+ 
+           // Para pagos personalizados, marcar la cuota como pagada parcialmente (status permanece 1)
+           // pero actualizar pay_date para registro
+           if (!empty($pending_quota_ids)) {
+             foreach ($pending_quota_ids as $quota_id) {
+               $this->payments_m->update_quota([
+                 'paid_by' => $user_id,
+                 'pay_date' => date('Y-m-d H:i:s')
+               ], $quota_id);
+               log_message('debug', 'TICKET: Cuota ' . $quota_id . ' marcada con pay_date para pago personalizado');
+             }
+           }
+         } else {
          // Para pagos normales, verificar existencia de cuotas antes de llamar get_quotasPaid
          log_message('debug', 'TICKET: Pago normal - Verificando existencia de cuotas antes de get_quotasPaid');
          foreach ($quota_ids as $q) {
@@ -545,12 +712,20 @@ class Payments extends CI_Controller {
        // Para pagos personalizados, usar el monto personalizado total
        $data['total_amount'] = $custom_amount;
        log_message('debug', 'TICKET: Pago personalizado - total_amount: ' . $custom_amount);
-     } else {
+     } elseif (!empty($processed_quotas)) {
+       // Si hay cuotas procesadas, usar la suma de los montos procesados
+       $data['total_amount'] = $this->calculate_total_from_processed($processed_quotas);
+       log_message('debug', 'TICKET: Usando processed_quotas - total_amount: ' . $data['total_amount']);
+     } elseif (!empty($data['quotasPaid'])) {
        // Para pagos normales, calcular como suma de fee_amount de las cuotas pagadas
        $fee_amounts_array = array_column($data['quotasPaid'], 'fee_amount');
        $data['total_amount'] = array_sum($fee_amounts_array);
        log_message('debug', 'TICKET: Pago normal - fee_amounts_array: ' . json_encode($fee_amounts_array));
        log_message('debug', 'TICKET: Pago normal - total_amount calculado: ' . $data['total_amount']);
+     } else {
+       // Fallback: usar el monto del pago original
+       $data['total_amount'] = $amount;
+       log_message('debug', 'TICKET: Fallback - usando monto del pago original: ' . $amount);
      }
 
      log_message('debug', 'TICKET: CÁLCULO - data[total_amount] final: ' . $data['total_amount']);
@@ -574,6 +749,340 @@ class Payments extends CI_Controller {
      log_message('debug', 'TICKET: ========== FINAL - CARGANDO VISTA ==========');
      log_message('debug', 'TICKET: Datos finales para vista: total_amount=' . $data['total_amount'] . ', quotasPaid count=' . count($data['quotasPaid']));
      $this->load->view('admin/payments/ticket', $data);
+   }
+
+   /**
+    * Procesa pago completo de cuotas seleccionadas
+    */
+   private function process_full_payment($quota_ids, $user_id) {
+     $processed = [];
+     if (is_array($quota_ids) && !empty($quota_ids)) {
+       foreach ($quota_ids as $quota_id) {
+         $quota_info = $this->payments_m->get_loan_item($quota_id);
+         if ($quota_info && $quota_info->status == 1) {
+           // Marcar cuota como pagada completamente
+           $this->payments_m->update_quota([
+             'status' => 0,
+             'paid_by' => $user_id,
+             'pay_date' => date('Y-m-d H:i:s'),
+             'capital_paid' => $quota_info->capital_amount,
+             'interest_paid' => $quota_info->interest_amount,
+             'balance' => 0
+           ], $quota_id);
+
+           $processed[] = [
+             'quota_id' => $quota_id,
+             'amount' => $quota_info->fee_amount,
+             'type' => 'full'
+           ];
+         }
+       }
+     }
+     return $processed;
+   }
+
+   /**
+    * Procesa pago solo de intereses
+    */
+   private function process_interest_only_payment($quota_ids, $user_id) {
+     $processed = [];
+     if (is_array($quota_ids) && !empty($quota_ids)) {
+       foreach ($quota_ids as $quota_id) {
+         $quota_info = $this->payments_m->get_loan_item($quota_id);
+         if ($quota_info && $quota_info->status == 1) {
+           $interest_pending = $quota_info->interest_amount - ($quota_info->interest_paid ?? 0);
+
+           if ($interest_pending > 0) {
+             // Actualizar solo intereses pagados
+             $this->payments_m->update_quota([
+               'interest_paid' => $quota_info->interest_amount, // Marcar intereses como pagados
+               'paid_by' => $user_id,
+               'pay_date' => date('Y-m-d H:i:s')
+             ], $quota_id);
+
+             $processed[] = [
+               'quota_id' => $quota_id,
+               'amount' => $interest_pending,
+               'type' => 'interest'
+             ];
+           }
+         }
+       }
+     }
+     return $processed;
+   }
+
+   /**
+    * Procesa pago solo de capital
+    */
+   private function process_capital_only_payment($quota_ids, $user_id) {
+     $processed = [];
+     if (is_array($quota_ids) && !empty($quota_ids)) {
+       foreach ($quota_ids as $quota_id) {
+         $quota_info = $this->payments_m->get_loan_item($quota_id);
+         if ($quota_info && $quota_info->status == 1) {
+           $capital_pending = $quota_info->capital_amount - ($quota_info->capital_paid ?? 0);
+
+           if ($capital_pending > 0) {
+             // Actualizar solo capital pagado
+             $this->payments_m->update_quota([
+               'capital_paid' => $quota_info->capital_amount, // Marcar capital como pagado
+               'balance' => 0, // Si se paga todo el capital, balance = 0
+               'status' => 0, // Marcar como pagada si capital completo
+               'paid_by' => $user_id,
+               'pay_date' => date('Y-m-d H:i:s')
+             ], $quota_id);
+
+             $processed[] = [
+               'quota_id' => $quota_id,
+               'amount' => $capital_pending,
+               'type' => 'capital'
+             ];
+           }
+         }
+       }
+     }
+     return $processed;
+   }
+
+   /**
+    * Procesa pago de interés y capital proporcionalmente
+    */
+   private function process_interest_capital_payment($quota_ids, $user_id) {
+     $processed = [];
+     if (is_array($quota_ids) && !empty($quota_ids)) {
+       foreach ($quota_ids as $quota_id) {
+         $quota_info = $this->payments_m->get_loan_item($quota_id);
+         if ($quota_info && $quota_info->status == 1) {
+           // Pagar cuota completa (interés + capital)
+           $this->payments_m->update_quota([
+             'status' => 0,
+             'capital_paid' => $quota_info->capital_amount,
+             'interest_paid' => $quota_info->interest_amount,
+             'balance' => 0,
+             'paid_by' => $user_id,
+             'pay_date' => date('Y-m-d H:i:s')
+           ], $quota_id);
+
+           $processed[] = [
+             'quota_id' => $quota_id,
+             'amount' => $quota_info->fee_amount,
+             'type' => 'both'
+           ];
+         }
+       }
+     }
+     return $processed;
+   }
+
+   /**
+    * Procesa pago personalizado con prioridad: interés primero, luego capital
+    * O liquidación anticipada completa del saldo pendiente
+    */
+   private function process_custom_payment($quota_ids, $custom_amount, $custom_payment_type, $user_id) {
+     $processed = [];
+     $remaining_amount = $custom_amount;
+     $payment_distribution = [];
+
+     log_message('debug', 'CUSTOM_PAYMENT: Iniciando procesamiento - monto: ' . $custom_amount . ', tipo: ' . $custom_payment_type);
+
+     if (is_array($quota_ids) && !empty($quota_ids)) {
+
+       // LIQUIDACIÓN ANTICIPADA: Pago total del saldo pendiente
+       if ($custom_payment_type === 'liquidation') {
+         log_message('debug', 'CUSTOM_PAYMENT: Procesando LIQUIDACIÓN ANTICIPADA');
+
+         $selected_quota_id = $quota_ids[0]; // Solo una cuota para liquidación
+         $selected_quota = $this->payments_m->get_loan_item($selected_quota_id);
+
+         if ($selected_quota && $selected_quota->status == 1) {
+           // Pagar el saldo pendiente completo de esta cuota
+           $balance_to_pay = $selected_quota->balance;
+
+           // Verificar que el monto pagado cubra al menos el saldo pendiente
+           if ($custom_amount >= $balance_to_pay) {
+             $quota_payment = [
+               'quota_id' => $selected_quota_id,
+               'interest_paid' => 0, // En liquidación, todo es capital
+               'capital_paid' => $balance_to_pay,
+               'total_paid' => $balance_to_pay,
+               'status_changed' => true,
+               'liquidation' => true
+             ];
+
+             $payment_distribution[] = $quota_payment;
+
+             // Actualizar cuota como completamente pagada
+             $this->payments_m->update_quota([
+               'status' => 0,
+               'capital_paid' => $selected_quota->capital_amount,
+               'interest_paid' => $selected_quota->interest_amount,
+               'balance' => 0,
+               'paid_by' => $user_id,
+               'pay_date' => date('Y-m-d H:i:s')
+             ], $selected_quota_id);
+
+             // LIBERAR CUOTAS SUBSIGUIENTES
+             $this->release_subsequent_quotas($selected_quota->loan_id, $selected_quota->num_quota, $user_id);
+
+             log_message('debug', 'CUSTOM_PAYMENT: Liquidación completada - cuota ' . $selected_quota_id . ' pagada, cuotas posteriores liberadas');
+
+             // Crear resultado para ticket
+             $processed[] = [
+               'quota_id' => $selected_quota_id,
+               'amount' => $balance_to_pay,
+               'type' => 'liquidation',
+               'interest_paid' => 0,
+               'capital_paid' => $balance_to_pay,
+               'status_changed' => true,
+               'liquidation' => true
+             ];
+
+           } else {
+             log_message('error', 'CUSTOM_PAYMENT: Monto insuficiente para liquidación');
+             throw new Exception('Monto insuficiente para liquidación anticipada');
+           }
+         }
+
+       } else {
+         // PROCESAMIENTO NORMAL CON PRIORIDAD INTERÉS-CAPITAL
+         log_message('debug', 'CUSTOM_PAYMENT: Procesando pago personalizado con prioridad interés-capital');
+
+         foreach ($quota_ids as $quota_id) {
+           if ($remaining_amount <= 0) break;
+
+           $quota_info = $this->payments_m->get_loan_item($quota_id);
+           if (!$quota_info || $quota_info->status != 1) {
+             log_message('debug', 'CUSTOM_PAYMENT: Cuota ' . $quota_id . ' no válida o ya pagada, saltando');
+             continue;
+           }
+
+           log_message('debug', 'CUSTOM_PAYMENT: Procesando cuota ' . $quota_id . ' - balance: ' . $quota_info->balance . ', remaining_amount: ' . $remaining_amount);
+
+           $quota_payment = [
+             'quota_id' => $quota_id,
+             'interest_paid' => 0,
+             'capital_paid' => 0,
+             'total_paid' => 0,
+             'status_changed' => false
+           ];
+
+           // 1. PRIMERO: Pagar interés completo de esta cuota
+           $interest_pending = $quota_info->interest_amount - ($quota_info->interest_paid ?? 0);
+           if ($interest_pending > 0 && $remaining_amount > 0) {
+             $interest_to_pay = min($remaining_amount, $interest_pending);
+             $quota_payment['interest_paid'] = $interest_to_pay;
+             $remaining_amount -= $interest_to_pay;
+             log_message('debug', 'CUSTOM_PAYMENT: Cuota ' . $quota_id . ' - pagado interés: ' . $interest_to_pay . ', remaining: ' . $remaining_amount);
+           }
+
+           // 2. SEGUNDO: Pagar capital de esta cuota con el restante
+           $capital_pending = $quota_info->capital_amount - ($quota_info->capital_paid ?? 0);
+           if ($capital_pending > 0 && $remaining_amount > 0) {
+             $capital_to_pay = min($remaining_amount, $capital_pending);
+             $quota_payment['capital_paid'] = $capital_to_pay;
+             $remaining_amount -= $capital_to_pay;
+             log_message('debug', 'CUSTOM_PAYMENT: Cuota ' . $quota_id . ' - pagado capital: ' . $capital_to_pay . ', remaining: ' . $remaining_amount);
+           }
+
+           $quota_payment['total_paid'] = $quota_payment['interest_paid'] + $quota_payment['capital_paid'];
+
+           // Determinar si la cuota queda completamente pagada
+           $total_paid_on_quota = ($quota_info->interest_paid ?? 0) + $quota_payment['interest_paid'] +
+                                 ($quota_info->capital_paid ?? 0) + $quota_payment['capital_paid'];
+
+           if ($total_paid_on_quota >= $quota_info->fee_amount) {
+             $quota_payment['status_changed'] = true;
+             log_message('debug', 'CUSTOM_PAYMENT: Cuota ' . $quota_id . ' queda completamente pagada');
+           }
+
+           if ($quota_payment['total_paid'] > 0) {
+             $payment_distribution[] = $quota_payment;
+
+             // Actualizar la cuota en base de datos
+             $update_data = [
+               'paid_by' => $user_id,
+               'pay_date' => date('Y-m-d H:i:s')
+             ];
+
+             if ($quota_payment['interest_paid'] > 0) {
+               $update_data['interest_paid'] = ($quota_info->interest_paid ?? 0) + $quota_payment['interest_paid'];
+             }
+
+             if ($quota_payment['capital_paid'] > 0) {
+               $update_data['capital_paid'] = ($quota_info->capital_paid ?? 0) + $quota_payment['capital_paid'];
+               $update_data['balance'] = $quota_info->balance - $quota_payment['capital_paid'];
+             }
+
+             if ($quota_payment['status_changed']) {
+               $update_data['status'] = 0; // Marcar como pagada
+               $update_data['balance'] = 0; // Asegurar balance = 0
+             }
+
+             $this->payments_m->update_quota($update_data, $quota_id);
+             log_message('debug', 'CUSTOM_PAYMENT: Cuota ' . $quota_id . ' actualizada en BD: ' . json_encode($update_data));
+           }
+         }
+
+         // Crear array de resultados para compatibilidad con código existente
+         foreach ($payment_distribution as $payment) {
+           $processed[] = [
+             'quota_id' => $payment['quota_id'],
+             'amount' => $payment['total_paid'],
+             'type' => 'custom_priority', // Nuevo tipo para identificar pagos con prioridad
+             'interest_paid' => $payment['interest_paid'],
+             'capital_paid' => $payment['capital_paid'],
+             'status_changed' => $payment['status_changed']
+           ];
+         }
+       }
+     }
+
+     log_message('debug', 'CUSTOM_PAYMENT: Procesamiento completado - tipo: ' . $custom_payment_type . ', distribucion: ' . json_encode($payment_distribution) . ', remaining_amount: ' . $remaining_amount);
+     return $processed;
+   }
+
+   /**
+    * Libera cuotas subsiguientes después de liquidación anticipada
+    */
+   private function release_subsequent_quotas($loan_id, $paid_quota_num, $user_id) {
+     log_message('debug', 'RELEASE_SUBSEQUENT_QUOTAS: Iniciando liberación de cuotas posteriores a ' . $paid_quota_num . ' para préstamo ' . $loan_id);
+
+     // Obtener todas las cuotas posteriores a la pagada
+     $this->db->where('loan_id', $loan_id);
+     $this->db->where('num_quota >', $paid_quota_num);
+     $subsequent_quotas = $this->db->get('loan_items')->result();
+
+     $released_count = 0;
+     foreach ($subsequent_quotas as $quota) {
+       // Marcar cuota como liberada (no pendiente, no requiere pago)
+       $this->payments_m->update_quota([
+         'status' => 0, // No pendiente
+         'balance' => 0, // Sin saldo
+         'capital_paid' => 0, // No se cobra capital
+         'interest_paid' => 0, // No se cobra interés
+         'paid_by' => $user_id,
+         'pay_date' => date('Y-m-d H:i:s'),
+         'extra_payment' => 1 // Marcar como cuota liberada por liquidación
+       ], $quota->id);
+
+       log_message('debug', 'RELEASE_SUBSEQUENT_QUOTAS: Cuota ' . $quota->id . ' (num_quota: ' . $quota->num_quota . ') liberada');
+       $released_count++;
+     }
+
+     log_message('debug', 'RELEASE_SUBSEQUENT_QUOTAS: Total cuotas liberadas: ' . $released_count);
+     return $released_count;
+   }
+
+   /**
+    * Calcula el total de montos procesados
+    */
+   private function calculate_total_from_processed($processed_quotas) {
+     $total = 0;
+     foreach ($processed_quotas as $processed) {
+       $total += $processed['amount'];
+     }
+     return $total;
    }
 
    /**

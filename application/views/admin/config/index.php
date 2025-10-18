@@ -268,27 +268,12 @@
                                      <i class="fas fa-arrow-left text-warning"></i> Sidebar Back
                                  </label>
                              </div>
-
-                             <h6 class="mt-3"><i class="fas fa-users text-info"></i> Clientes</h6>
-                             <div class="form-check ml-3">
+                             <div class="form-check">
                                  <input class="form-check-input" type="checkbox" name="permisos[]" value="customers" id="permission-customers">
                                  <label class="form-check-label" for="permission-customers">
-                                     <small>Acceso general a Clientes</small>
+                                     <i class="fas fa-users text-info"></i> Clientes
                                  </label>
                              </div>
-                             <div class="form-check ml-3">
-                                 <input class="form-check-input" type="checkbox" name="permisos[]" value="customers_list" id="permission-customers-list">
-                                 <label class="form-check-label" for="permission-customers-list">
-                                     <small>Lista de Clientes</small>
-                                 </label>
-                             </div>
-                             <div class="form-check ml-3">
-                                 <input class="form-check-input" type="checkbox" name="permisos[]" value="customers_overdue" id="permission-customers-overdue">
-                                 <label class="form-check-label" for="permission-customers-overdue">
-                                     <small>Pagos Vencidos</small>
-                                 </label>
-                             </div>
-
                              <div class="form-check">
                                  <input class="form-check-input" type="checkbox" name="permisos[]" value="coins" id="permission-coins">
                                  <label class="form-check-label" for="permission-coins">
@@ -309,33 +294,12 @@
                                      <i class="fas fa-cash-register text-danger"></i> Cobranzas
                                  </label>
                              </div>
-
-                             <h6 class="mt-3"><i class="fas fa-chart-line text-info"></i> Reportes</h6>
-                             <div class="form-check ml-3">
+                             <div class="form-check">
                                  <input class="form-check-input" type="checkbox" name="permisos[]" value="reports" id="permission-reports">
                                  <label class="form-check-label" for="permission-reports">
-                                     <small>Acceso general a Reportes</small>
+                                     <i class="fas fa-chart-line text-info"></i> Reportes
                                  </label>
                              </div>
-                             <div class="form-check ml-3">
-                                 <input class="form-check-input" type="checkbox" name="permisos[]" value="reports_commissions" id="permission-reports-commissions">
-                                 <label class="form-check-label" for="permission-reports-commissions">
-                                     <small>Comisiones por Cobrador</small>
-                                 </label>
-                             </div>
-                             <div class="form-check ml-3">
-                                 <input class="form-check-input" type="checkbox" name="permisos[]" value="reports_admin" id="permission-reports-admin">
-                                 <label class="form-check-label" for="permission-reports-admin">
-                                     <small>Administrador</small>
-                                 </label>
-                             </div>
-                             <div class="form-check ml-3">
-                                 <input class="form-check-input" type="checkbox" name="permisos[]" value="reports_general" id="permission-reports-general">
-                                 <label class="form-check-label" for="permission-reports-general">
-                                     <small>General x Cliente</small>
-                                 </label>
-                             </div>
-
                              <div class="form-check">
                                  <input class="form-check-input" type="checkbox" name="permisos[]" value="config" id="permission-config">
                                  <label class="form-check-label" for="permission-config">

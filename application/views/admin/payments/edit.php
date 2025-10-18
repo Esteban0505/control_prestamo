@@ -188,6 +188,7 @@
                       <option value="cuota">Cuota</option>
                       <option value="interes">Interés</option>
                       <option value="capital">Capital</option>
+                      <option value="liquidation">Liquidación Anticipada</option>
                     </select>
                     <small class="form-text text-muted">¿Dónde aplicar el pago?</small>
                   </div>

@@ -230,6 +230,10 @@
                 <th class="text-right">Capital</th>
                 <th class="text-right">Saldo Restante</th>
                 <th class="text-center">Estado</th>
+                <?php if ($show_payment_distribution): ?>
+                <th class="text-center">Interés Pagado</th>
+                <th class="text-center">Capital Pagado</th>
+                <?php endif; ?>
               </tr>
             </thead>
             <tbody>
@@ -238,8 +242,23 @@
               $total_interes = 0;
               $total_capital = 0;
               $total_saldo = 0;
-              if (!empty($quotasPaid)):
-                foreach ($quotasPaid as $quota):
+
+              // Usar processed_quotas si está disponible, sino quotasPaid
+              $quotas_to_show = !empty($processed_quotas) ? $processed_quotas : (!empty($quotasPaid) ? $quotasPaid : []);
+
+              // DEBUG: Log para verificar qué datos están disponibles
+              error_log('TICKET DEBUG - processed_quotas: ' . json_encode($processed_quotas));
+              error_log('TICKET DEBUG - quotasPaid: ' . json_encode($quotasPaid));
+              error_log('TICKET DEBUG - quotas_to_show: ' . json_encode($quotas_to_show));
+              error_log('TICKET DEBUG - count(quotas_to_show): ' . count($quotas_to_show));
+              error_log('TICKET DEBUG - tipo_pago: ' . (isset($tipo_pago) ? $tipo_pago : 'NO SET'));
+
+              // Usar variables pasadas desde el controlador (si existen) o inicializar con valores por defecto
+              $show_payment_distribution = isset($show_payment_distribution) ? $show_payment_distribution : false;
+              $is_liquidation = isset($is_liquidation) ? $is_liquidation : false;
+
+              if (!empty($quotas_to_show)):
+                foreach ($quotas_to_show as $quota):
                   // Verificar si es objeto o array
                   $num_quota = is_object($quota) ? $quota->num_quota : (isset($quota['num_quota']) ? $quota['num_quota'] : '');
                   $date = is_object($quota) ? $quota->date : (isset($quota['date']) ? $quota['date'] : '');
@@ -266,6 +285,20 @@
                       <?php echo $status == 1 ? 'Pendiente' : 'Pagado'; ?>
                     </span>
                   </td>
+                  <?php if ($show_payment_distribution): ?>
+                  <td class="text-right">
+                    <?php
+                    $interest_paid = is_object($quota) ? (isset($quota->interest_paid) ? $quota->interest_paid : 0) : (isset($quota['interest_paid']) ? $quota['interest_paid'] : 0);
+                    echo number_format($interest_paid, 2, ',', '.');
+                    ?>
+                  </td>
+                  <td class="text-right">
+                    <?php
+                    $capital_paid = is_object($quota) ? (isset($quota->capital_paid) ? $quota->capital_paid : 0) : (isset($quota['capital_paid']) ? $quota['capital_paid'] : 0);
+                    echo number_format($capital_paid, 2, ',', '.');
+                    ?>
+                  </td>
+                  <?php endif; ?>
                 </tr>
               <?php endforeach; ?>
               <?php else: ?>
@@ -314,6 +347,35 @@
           </div>
           <div class="col-md-6">
             <p><strong>Total Pagado:</strong> <span class="text-success font-weight-bold"><?php echo number_format($total_amount ?? $total_cuota, 2, ',', '.') . ' COP'; ?></span></p>
+            <?php if (isset($tipo_pago) && in_array($tipo_pago, ['interest', 'capital', 'both', 'custom'])): ?>
+            <p><strong>Tipo de Pago:</strong>
+              <?php
+              $tipo_descripcion = [
+                'interest' => 'Solo Interés',
+                'capital' => 'Pago a Capital',
+                'both' => 'Interés y Capital',
+                'custom' => 'Monto Personalizado con Prioridad (Interés → Capital)'
+              ];
+              echo $tipo_descripcion[$tipo_pago] ?? $tipo_pago;
+              ?>
+            </p>
+            <?php endif; ?>
+
+            <?php if (isset($custom_payment_type) && $custom_payment_type === 'liquidation'): ?>
+            <div class="alert alert-success mt-3">
+              <h6><i class="fas fa-check-circle"></i> Liquidación Anticipada Completada</h6>
+              <p class="mb-1">El préstamo ha sido liquidado anticipadamente. Todas las cuotas posteriores han sido liberadas.</p>
+              <small>El cliente ya no tiene obligaciones pendientes con este préstamo.</small>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($show_payment_distribution): ?>
+            <div class="alert alert-info mt-3">
+              <h6><i class="fas fa-info-circle"></i> Distribución del Pago Personalizado</h6>
+              <p class="mb-1">El pago se aplicó siguiendo la prioridad: <strong>Interés completo primero, luego Capital</strong></p>
+              <small>Esta distribución asegura que los intereses se paguen completamente antes de reducir el capital adeudado.</small>
+            </div>
+            <?php endif; ?>
             <p><strong>Total Intereses:</strong> <?php echo number_format($total_interes, 2, ',', '.') . ' COP'; ?></p>
             <p><strong>Total Capital:</strong> <?php echo number_format($total_capital, 2, ',', '.') . ' COP'; ?></p>
             <p><strong>Saldo Restante:</strong> <?php echo number_format($total_saldo, 2, ',', '.') . ' COP'; ?></p>

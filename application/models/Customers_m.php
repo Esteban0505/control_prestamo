@@ -22,9 +22,49 @@ class Customers_m extends MY_Model {
       'rules' => 'trim|required'
     ),
     array(
+      'field' => 'gender',
+      'label' => 'género',
+      'rules' => 'trim|required|in_list[masculino,femenino]'
+    ),
+    array(
       'field' => 'tipo_cliente',
       'label' => 'tipo de cliente',
       'rules' => 'trim|required|in_list[normal,especial]'
+    ),
+    array(
+      'field' => 'department_id',
+      'label' => 'departamento',
+      'rules' => 'trim|required|numeric'
+    ),
+    array(
+      'field' => 'province_id',
+      'label' => 'provincia',
+      'rules' => 'trim|required|numeric'
+    ),
+    array(
+      'field' => 'district_id',
+      'label' => 'distrito',
+      'rules' => 'trim|required|numeric'
+    ),
+    array(
+      'field' => 'address',
+      'label' => 'dirección',
+      'rules' => 'trim|required'
+    ),
+    array(
+      'field' => 'mobile',
+      'label' => 'celular',
+      'rules' => 'trim|required'
+    ),
+    array(
+      'field' => 'phone',
+      'label' => 'correo electrónico',
+      'rules' => 'trim|required|valid_email'
+    ),
+    array(
+      'field' => 'user_id',
+      'label' => 'usuario',
+      'rules' => 'trim|required|numeric'
     )
   );
 
@@ -161,19 +201,27 @@ class Customers_m extends MY_Model {
 
   public function save($data, $id = NULL)
   {
+    log_message('debug', '[DEBUG] Iniciando save() en modelo - ID: ' . ($id ?: 'NULL') . ', Datos: ' . json_encode($data));
+
     // Validar que el DNI no esté duplicado
     if (isset($data['dni']) && !empty($data['dni'])) {
+      log_message('debug', '[DEBUG] Validando DNI duplicado: ' . $data['dni']);
       $this->db->where('dni', $data['dni']);
       if ($id !== NULL) {
         $this->db->where('id !=', $id);
       }
       $query = $this->db->get('customers');
+      log_message('debug', '[DEBUG] Resultado consulta DNI: ' . $query->num_rows() . ' registros encontrados');
       if ($query->num_rows() > 0) {
+        log_message('debug', '[DEBUG] DNI duplicado detectado - retornando FALSE');
         return false; // DNI duplicado
       }
     }
 
-    return parent::save($data, $id);
+    $result = parent::save($data, $id);
+    log_message('debug', '[DEBUG] Resultado parent::save(): ' . ($result ? 'TRUE' : 'FALSE'));
+
+    return $result;
   }
 
 }
