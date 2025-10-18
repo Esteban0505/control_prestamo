@@ -53,6 +53,7 @@
             </th>
             <th>Cliente</th>
             <th>Cédula</th>
+            <th>Tel. Fijo</th>
             <th>Préstamo</th>
             <th>Monto Original</th>
             <th>Progreso</th>
@@ -160,9 +161,9 @@ document.addEventListener('DOMContentLoaded', function() {
     },
     columnDefs: [
       { orderable: false, targets: [0] }, // Checkbox column not orderable
-      { orderable: true, targets: [1, 2, 3, 4, 5, 6, 7, 8, 9] },
-      { searchable: true, targets: [1, 2, 3, 4, 5, 6, 7, 8, 9] }, // Skip checkbox column for search
-      { className: "text-center", targets: [0, 4, 5] } // Center align checkbox, progress, and payments columns
+      { orderable: true, targets: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
+      { searchable: true, targets: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] }, // Skip checkbox column for search
+      { className: "text-center", targets: [0, 5, 6] } // Center align checkbox, progress, and payments columns
     ],
     order: [[0, 'asc']],
     dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>rt<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>'
@@ -245,6 +246,7 @@ document.addEventListener('DOMContentLoaded', function() {
           '<input type="checkbox" class="commission-checkbox" data-client-id="' + (client.customer_id || index) + '" data-loan-id="' + client.loan_id + '" data-interest="' + (client.total_interest_paid || 0) + '" data-commission="' + (client.interest_commission_40 || 0) + '">',
           client.customer_name || client.client_name || '',
           client.dni || client.client_cedula || '',
+          client.phone_fixed || 'N/A',
           client.loan_id || '',
           '$' + formatNumber(client.credit_amount || client.loan_amount || 0),
           client.progress || '0/0',

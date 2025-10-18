@@ -1,5 +1,5 @@
 <?php
-//Based on HTML2PDF by Clément Lavoillotte
+//Based on HTML2PDF by Clï¿½ment Lavoillotte
 
 require_once APPPATH.'third_party/fpdf183/fpdf.php';
 
@@ -66,6 +66,23 @@ function __construct($orientation='P', $unit='mm', $format='A4')
 	$this->fontlist=array("arial","times","courier","helvetica","symbol");
 	$this->issetfont=false;
 	$this->issetcolor=false;
+}
+
+function Header()
+{
+	// Logo
+	$logoPath = FCPATH . 'assets/img/log.png';
+	if(file_exists($logoPath)) {
+		$this->Image($logoPath, 10, 10, 30);
+	}
+	// Arial bold 15
+	$this->SetFont('Arial','B',15);
+	// Move to the right
+	$this->Cell(80);
+	// Title
+	$this->Cell(30,10,'Sistema de Prestamos',0,0,'C');
+	// Line break
+	$this->Ln(20);
 }
 
 //////////////////////////////////////

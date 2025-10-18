@@ -66,7 +66,7 @@ $expectedPaymentsDataJson = isset($expectedPaymentsDataJson) ? $expectedPayments
             <div class="row">
                 <!-- Total Clientes -->
                 <div class="col-xl-3 col-md-6 mb-4">
-                    <div class="card border-left-primary shadow h-100">
+                     <div class="card border-left-primary shadow h-100 kpi-card" data-url="<?php echo base_url('admin/customers'); ?>" style="cursor: pointer;">
                         <div class="card-body">
                             <div class="row no-gutters align-items-center">
                                 <div class="col mr-2">
@@ -90,7 +90,7 @@ $expectedPaymentsDataJson = isset($expectedPaymentsDataJson) ? $expectedPayments
 
                 <!-- Préstamos Activos -->
                 <div class="col-xl-3 col-md-6 mb-4">
-                    <div class="card border-left-success shadow h-100">
+                     <div class="card border-left-success shadow h-100 kpi-card" data-url="<?php echo base_url('admin/loans'); ?>" style="cursor: pointer;">
                         <div class="card-body">
                             <div class="row no-gutters align-items-center">
                                 <div class="col mr-2">
@@ -114,7 +114,7 @@ $expectedPaymentsDataJson = isset($expectedPaymentsDataJson) ? $expectedPayments
 
                 <!-- Cobranzas Realizadas -->
                 <div class="col-xl-3 col-md-6 mb-4">
-                    <div class="card border-left-info shadow h-100">
+                     <div class="card border-left-info shadow h-100 kpi-card" data-url="<?php echo base_url('admin/payments'); ?>" style="cursor: pointer;">
                         <div class="card-body">
                             <div class="row no-gutters align-items-center">
                                 <div class="col mr-2">
@@ -138,7 +138,7 @@ $expectedPaymentsDataJson = isset($expectedPaymentsDataJson) ? $expectedPayments
 
                 <!-- Cartera Activa -->
                 <div class="col-xl-3 col-md-6 mb-4">
-                    <div class="card border-left-warning shadow h-100">
+                     <div class="card border-left-warning shadow h-100 kpi-card" data-url="<?php echo base_url('admin/reports/dates'); ?>" style="cursor: pointer;">
                         <div class="card-body">
                             <div class="row no-gutters align-items-center">
                                 <div class="col mr-2">
@@ -169,7 +169,7 @@ $expectedPaymentsDataJson = isset($expectedPaymentsDataJson) ? $expectedPayments
             <div class="row">
                 <!-- Tasa de Morosidad -->
                 <div class="col-xl-4 col-md-6 mb-4">
-                    <div class="card border-left-danger shadow h-100">
+                     <div class="card border-left-danger shadow h-100 kpi-card" data-url="<?php echo base_url('admin/customers/overdue'); ?>" style="cursor: pointer;">
                         <div class="card-body">
                             <div class="row no-gutters align-items-center">
                                 <div class="col mr-2">
@@ -193,7 +193,7 @@ $expectedPaymentsDataJson = isset($expectedPaymentsDataJson) ? $expectedPayments
 
                 <!-- Promedio por Cliente -->
                 <div class="col-xl-4 col-md-6 mb-4">
-                    <div class="card border-left-info shadow h-100">
+                     <div class="card border-left-info shadow h-100 kpi-card" data-url="<?php echo base_url('admin/reports/dates'); ?>" style="cursor: pointer;">
                         <div class="card-body">
                             <div class="row no-gutters align-items-center">
                                 <div class="col mr-2">
@@ -217,7 +217,7 @@ $expectedPaymentsDataJson = isset($expectedPaymentsDataJson) ? $expectedPayments
 
                 <!-- Tasa de Cobranza -->
                 <div class="col-xl-4 col-md-6 mb-4">
-                    <div class="card border-left-success shadow h-100">
+                     <div class="card border-left-success shadow h-100 kpi-card" data-url="<?php echo base_url('admin/reports/dates'); ?>" style="cursor: pointer;">
                         <div class="card-body">
                             <div class="row no-gutters align-items-center">
                                 <div class="col mr-2">
@@ -1269,11 +1269,26 @@ $expectedPaymentsDataJson = isset($expectedPaymentsDataJson) ? $expectedPayments
     // Actualizar la hora cada segundo
     setInterval(updateColombiaTime, 1000);
 
+    // Función para manejar clics en KPIs
+    function handleKPIClick(event) {
+        const card = event.currentTarget;
+        const url = card.getAttribute('data-url');
+        if (url) {
+            window.location.href = url;
+        }
+    }
+
     // Mostrar/ocultar consejos de uso y funcionalidades avanzadas
     document.addEventListener('DOMContentLoaded', function() {
         // Actualizar hora inicial
         updateColombiaTime();
         // Funcionalidades avanzadas sin consejos visibles
+
+        // Agregar event listeners a las tarjetas KPI
+        const kpiCards = document.querySelectorAll('.kpi-card');
+        kpiCards.forEach(card => {
+            card.addEventListener('click', handleKPIClick);
+        });
 
         // Agregar indicador de estado de conexión
         const statusIndicator = document.createElement('div');

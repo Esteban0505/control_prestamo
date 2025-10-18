@@ -103,6 +103,9 @@
                                             <?php echo $ct->loan_status ? 'Con Crédito' : 'Sin Crédito'; ?>
                                         </span>
                                         <br>
+                                        <a href="<?php echo site_url('admin/customers/view/'.$ct->id); ?>" class="btn btn-sm btn-primary mr-1">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
                                         <a href="<?php echo site_url('admin/customers/edit/'.$ct->id); ?>" class="btn btn-sm btn-info">
                                             <i class="fas fa-edit"></i>
                                         </a>
@@ -200,6 +203,9 @@
                                         <?php endif; ?>
                                     </td>
                                     <td>
+                                        <a href="<?php echo site_url('admin/customers/view/'.$ct->id); ?>" class="btn btn-sm btn-primary mr-1">
+                                            <i class="fas fa-eye mr-1"></i>Ver
+                                        </a>
                                         <a href="<?php echo site_url('admin/customers/edit/'.$ct->id); ?>" class="btn btn-sm btn-outline-primary">
                                             <i class="fas fa-edit mr-1"></i>Editar
                                         </a>

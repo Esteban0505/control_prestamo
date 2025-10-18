@@ -80,60 +80,110 @@ class Reports extends MY_Controller {
 
   public function dates_pdf($coin_id, $start_d, $end_d)
   {
-    require_once APPPATH.'third_party/fpdf183/html_table.php';
+    require_once APPPATH.'third_party/fpdf183/pdf_apa.php';
 
     $reportCoin = $this->reports_m->get_reportCoin($coin_id);
 
-    $pdf = new PDF();
-    $pdf->AddPage('P','A4',0);
-    $pdf->SetFont('Arial','B',13);
-    $pdf->Ln(7);
-    $pdf->Cell(0,0,'Reporte de prestamos por rango de fechas',0,1,'C');
+    // Obtener nombre del usuario logueado
+    $current_user = $this->user_m->get_current_user();
+    $user_name = $current_user ? $current_user->first_name . ' ' . $current_user->last_name : 'Usuario desconocido';
 
-    $pdf->Ln(8);
-    
-    $pdf->SetFont('Arial','',10);
-    $html = '<table border="0">
-    <tr>
-    <td width="110" height="30"><b>Fecha inicial:</b></td><td width="400" height="30">'.$start_d.'</td><td width="110" height="30"><b>Tipo moneda:</b></td><td width="55" height="30">'.$reportCoin->name.'('.$reportCoin->short_name.')</td>
-    </tr>
-    <tr>
-    <td width="110" height="30"><b>Fecha final:</b></td><td width="400" height="30">'.$end_d.'</td><td width="110" height="30"></td><td width="55" height="30"></td>
-    </tr>
-    </table>';
+    // Crear instancia PDF con formato APA
+    $pdf = new PDF_APA('P', 'mm', 'A4');
+    $pdf->setTitle('Reporte de Préstamos por Rango de Fechas - Sistema de Préstamos');
+    $pdf->setAuthor($user_name);
 
-    $pdf->WriteHTML($html);
+    // Agregar referencias APA si es necesario
+    $pdf->addReference('Sistema de Gestión de Préstamos. (2024). Reporte de préstamos por fechas generada automáticamente.');
+    $pdf->addReference('Normas APA. (2023). Manual de publicaciones de la American Psychological Association (7ª ed.).');
 
-    // $reportsDates = $this->reports_m->get_reportDates(1,'2021-03-07','2021-05-13');
-    // print_r($reportsDates);
-    $reportsDates = $this->reports_m->get_reportDates($coin_id,$start_d,$end_d);
+    // Crear portada
+    $pdf->createCoverPage();
 
-    $pdf->Ln(7);
-    $pdf->SetFont('Arial','',10);
-    $html1 = '';
-    $html1 .= '<table border="1">
-    <tr>
-    <td width="80" height="30"><b>N'.utf8_decode("°").'Prest.</b></td><td width="100" height="30"><b>Fecha prest.</b></td><td width="120" height="30"><b>Monto prest.</b></td><td width="65" height="30"><b>Int. %</b></td><td width="65" height="30"><b>N'.utf8_decode("°").'cuot.</b></td><td width="90" height="30"><b>Modalidad</b></td><td width="100" height="30"><b>Total con Int.</b></td><td width="79" height="30"><b>Estado</b></td>
-    </tr>';
-    $sum_m = 0; $sum_mi = 0;
-    foreach ($reportsDates as $rd) {
-      $sum_m = $sum_m + $rd->credit_amount;
-      $sum_mi = $sum_mi + $rd->total_int;
-      $html1 .= '
-    <tr>
-    <td width="80" height="30">'.$rd->id.'</td><td width="100" height="30">'.$rd->date.'</td><td width="120" height="30">'.$rd->credit_amount.'</td><td width="65" height="30">'.$rd->interest_amount.'</td><td width="65" height="30">'.$rd->num_fee.'</td><td width="90" height="30">'.$rd->payment_m.'</td><td width="100" height="30">'.$rd->total_int.'</td><td width="79" height="30">'.($rd->status ? "Pendiente" : "Cancelado").'</td>
-    </tr>';
+    // Agregar logo en la primera página de contenido
+    $logoPath = FCPATH . 'assets/img/log.png';
+    if(file_exists($logoPath)) {
+        $pdf->Image($logoPath, $pdf->getMarginLeft(), $pdf->GetY(), 30);
+        $pdf->Ln(35);
     }
 
-    $html1 .= '
-    <tr>
-    <td width="80" height="30"><b>Total</b></td><td width="100" height="30">-----</td><td width="120" height="30"><b>'.number_format($sum_m, 2).'</b></td><td width="65" height="30">-----</td><td width="65" height="30">-----</td><td width="90" height="30">-----</td><td width="100" height="30"><b>'.number_format($sum_mi, 2).'</b></td><td width="79" height="30">-----</td>
-    </tr>';
-    $html1 .= '</table>';
+    // Crear secciones con formato APA
+    $pdf->createSection('Información del Reporte', 1);
 
-    $pdf->WriteHTML($html1);
+    // Información del reporte
+    $report_info = [
+        ['Fecha Inicial:', $pdf->formatDate($start_d)],
+        ['Fecha Final:', $pdf->formatDate($end_d)],
+        ['Tipo de Moneda:', $reportCoin->name . ' (' . $reportCoin->short_name . ')']
+    ];
 
-    $pdf->Output('reporteFechas.pdf' , 'I');
+    foreach ($report_info as $info) {
+        $pdf->Cell(60, 8, utf8_decode($info[0]), 0, 0);
+        $pdf->Cell(0, 8, utf8_decode($info[1]), 0, 1);
+    }
+
+    $pdf->Ln(5);
+
+    // Obtener datos del reporte
+    $reportsDates = $this->reports_m->get_reportDates($coin_id, $start_d, $end_d);
+
+    // Crear sección de tabla
+    $pdf->createSection('Detalle de Préstamos', 1);
+
+    // Preparar datos de tabla
+    $headers = ['N° Prést.', 'Fecha Prést.', 'Monto Prést.', 'Int. %', 'N° Cuot.', 'Modalidad', 'Total con Int.', 'Estado'];
+    $table_data = [];
+    $sum_m = 0;
+    $sum_mi = 0;
+
+    foreach ($reportsDates as $rd) {
+        $sum_m += $rd->credit_amount;
+        $sum_mi += $rd->total_int;
+        $table_data[] = [
+            $rd->id,
+            $pdf->formatDate($rd->date),
+            $pdf->formatCurrency($rd->credit_amount),
+            number_format($rd->interest_amount, 2, ',', '.') . '%',
+            $rd->num_fee,
+            ucfirst($rd->payment_m),
+            $pdf->formatCurrency($rd->total_int),
+            ($rd->status ? "Pendiente" : "Cancelado")
+        ];
+    }
+
+    // Agregar fila de totales
+    $table_data[] = [
+        'Total',
+        '-----',
+        $pdf->formatCurrency($sum_m),
+        '-----',
+        '-----',
+        '-----',
+        $pdf->formatCurrency($sum_mi),
+        '-----'
+    ];
+
+    // Definir anchos de columna
+    $widths = [25, 25, 30, 20, 20, 25, 30, 25];
+
+    // Crear tabla con formato APA
+    $pdf->createTable($headers, $table_data, $widths);
+
+    // Agregar sección de referencias si hay referencias
+    $pdf->createReferencesPage();
+
+    // Generar y enviar el PDF
+    $pdf_content = $pdf->Output('', 'S');
+
+    // Configurar headers para descarga
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: attachment; filename="reporte_prestamos_fechas_' . date('Y-m-d_H-i-s') . '.pdf"');
+    header('Content-Length: ' . strlen($pdf_content));
+    header('Cache-Control: private, max-age=0, must-revalidate');
+    header('Pragma: public');
+
+    echo $pdf_content;
+    exit;
   }
 
   public function customers()
@@ -145,84 +195,239 @@ class Reports extends MY_Controller {
 
   public function customer_pdf($customer_id)
   {
-    require_once APPPATH.'third_party/fpdf183/html_table.php';
+    require_once APPPATH.'third_party/fpdf183/pdf_apa.php';
 
     $reportCst = $this->reports_m->get_reportLC($customer_id);
-    //print_r($reportCst[0]->customer_name);
 
-    $pdf = new PDF();
-    $pdf->AddPage('P','A4',0);
-    $pdf->SetFont('Arial','B',13);
-    $pdf->Ln(7);
-    $pdf->Cell(0,0,'Reporte de prestamos por cliente - '.$reportCst[0]->customer_name,0,1,'C');
+    // Obtener nombre del usuario logueado
+    $current_user = $this->user_m->get_current_user();
+    $user_name = $current_user ? $current_user->first_name . ' ' . $current_user->last_name : 'Usuario desconocido';
 
-    $pdf->Ln(8);
-  
-    $pdf->SetFont('Arial','',10);
+    // Obtener información detallada del cliente
+    $customer_info = $this->customers_m->get($customer_id);
 
+    // Crear instancia PDF con formato APA
+    $pdf = new PDF_APA('P', 'mm', 'A4');
+    $pdf->setTitle('Estado de Cuenta - ' . ($customer_info->first_name ?? 'Cliente') . ' ' . ($customer_info->last_name ?? '') . ' - Sistema de Préstamos');
+    $pdf->setAuthor($user_name);
+
+    // Agregar referencias APA si es necesario
+    $pdf->addReference('Sistema de Gestión de Préstamos. (2024). Estado de cuenta generado automáticamente.');
+    $pdf->addReference('Normas APA. (2023). Manual de publicaciones de la American Psychological Association (7ª ed.).');
+
+    // Crear portada mejorada con información del cliente
+    $this->_create_customer_cover_page($pdf, $customer_info, $reportCst);
+
+    // Agregar resumen ejecutivo después de la portada
+    $this->_create_executive_summary($pdf, $customer_info, $reportCst);
+
+    // Agregar logo en la primera página de contenido
+    $logoPath = FCPATH . 'assets/img/log.png';
+    if(file_exists($logoPath)) {
+        $pdf->Image($logoPath, $pdf->getMarginLeft(), $pdf->GetY(), 30);
+        $pdf->Ln(35);
+    }
+
+    // Procesar cada préstamo con mejor formato
     foreach ($reportCst as $rc) {
+        // Calcular total pagado y saldo restante
+        $loanItems = $this->reports_m->get_reportLI($rc->id);
+        $total_pagado = 0;
+        $saldo_restante = 0;
+        foreach ($loanItems as $li) {
+            if ($li->status == 0) { // Pagado
+                $total_pagado += $li->fee_amount;
+            } else {
+                $saldo_restante += $li->balance;
+            }
+        }
 
-    // Calcular total pagado y saldo restante
-    $loanItems = $this->reports_m->get_reportLI($rc->id);
+        // Crear sección para cada préstamo con mejor formato visual
+        $this->_create_loan_section($pdf, $rc, $total_pagado, $saldo_restante, $loanItems);
+
+        // Crear sección de tabla de cuotas
+        $pdf->createSection('Detalle de Cuotas', 2);
+
+        // Preparar datos de tabla
+        $headers = ['Nro Cuota', 'Fecha de Pago', 'Total a Pagar', 'Estado'];
+        $table_data = [];
+
+        foreach ($loanItems as $li) {
+            $table_data[] = [
+                $li->num_quota,
+                $pdf->formatDate($li->date),
+                $pdf->formatCurrency($li->fee_amount),
+                ($li->status ? "Pendiente" : "Pagado")
+            ];
+        }
+
+        // Definir anchos de columna
+        $widths = [30, 40, 50, 40];
+
+        // Crear tabla con formato APA
+        $pdf->createTable($headers, $table_data, $widths);
+
+        $pdf->Ln(10);
+    }
+
+    // Agregar sección de referencias si hay referencias
+    $pdf->createReferencesPage();
+
+    // Generar y enviar el PDF
+    $pdf_content = $pdf->Output('', 'S');
+
+    // Configurar headers para descarga
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: attachment; filename="reporte_prestamos_cliente_' . date('Y-m-d_H-i-s') . '.pdf"');
+    header('Content-Length: ' . strlen($pdf_content));
+    header('Cache-Control: private, max-age=0, must-revalidate');
+    header('Pragma: public');
+
+    echo $pdf_content;
+    exit;
+  }
+
+  /**
+   * Generar PDF de detalles de préstamo específico
+   */
+  public function loan_pdf($loan_id)
+  {
+    require_once APPPATH.'third_party/fpdf183/pdf_apa.php';
+
+    // Obtener datos del préstamo
+    $this->db->select('l.*, co.name as coin_name, co.short_name as coin_short,
+                      CONCAT(c.first_name, " ", c.last_name) AS customer_name, c.dni,
+                      CONCAT(u.first_name, " ", u.last_name) as asesor_name');
+    $this->db->from('loans l');
+    $this->db->join('customers c', 'c.id = l.customer_id', 'left');
+    $this->db->join('coins co', 'co.id = l.coin_id', 'left');
+    $this->db->join('users u', 'u.id = l.assigned_user_id', 'left');
+    $this->db->where('l.id', $loan_id);
+    $loan = $this->db->get()->row();
+
+    if (!$loan) {
+      show_error('Préstamo no encontrado', 404);
+      return;
+    }
+
+    // Obtener nombre del usuario logueado
+    $current_user = $this->user_m->get_current_user();
+    $user_name = $current_user ? $current_user->first_name . ' ' . $current_user->last_name : 'Usuario desconocido';
+
+    // Crear instancia PDF con formato APA
+    $pdf = new PDF_APA('P', 'mm', 'A4');
+    $pdf->setTitle('Detalle de Préstamo - ID: ' . $loan_id . ' - Sistema de Préstamos');
+    $pdf->setAuthor($user_name);
+
+    // Agregar referencias APA si es necesario
+    $pdf->addReference('Sistema de Gestión de Préstamos. (2024). Reporte de préstamo individual generada automáticamente.');
+    $pdf->addReference('Normas APA. (2023). Manual de publicaciones de la American Psychological Association (7ª ed.).');
+
+    // Crear portada
+    $pdf->createCoverPage();
+
+    // Agregar logo en la primera página de contenido
+    $logoPath = FCPATH . 'assets/img/log.png';
+    if(file_exists($logoPath)) {
+        $pdf->Image($logoPath, $pdf->getMarginLeft(), $pdf->GetY(), 30);
+        $pdf->Ln(35);
+    }
+
+    // Crear sección de información del préstamo
+    $pdf->createSection('Información del Préstamo', 1);
+
+    // Información del préstamo
+    $loan_info = [
+        ['ID del Préstamo:', $loan->id],
+        ['Cliente:', $loan->customer_name],
+        ['Cédula:', $loan->dni],
+        ['Asesor:', $loan->asesor_name ?: 'No asignado'],
+        ['Monto del Crédito:', $pdf->formatCurrency($loan->credit_amount)],
+        ['Interés del Crédito:', number_format($loan->interest_amount, 2, ',', '.') . '%'],
+        ['Forma de Pago:', ucfirst($loan->payment_m)],
+        ['Número de Cuotas:', $loan->num_fee],
+        ['Fecha del Crédito:', $pdf->formatDate($loan->date)],
+        ['Monto de Cuota:', $pdf->formatCurrency($loan->fee_amount)],
+        ['Estado del Crédito:', ($loan->status ? "Pendiente" : "Cancelado")],
+        ['Tipo de Moneda:', $loan->coin_name . ' (' . $loan->coin_short . ')']
+    ];
+
+    foreach ($loan_info as $info) {
+        $pdf->Cell(60, 8, utf8_decode($info[0]), 0, 0);
+        $pdf->Cell(0, 8, utf8_decode($info[1]), 0, 1);
+    }
+
+    $pdf->Ln(5);
+
+    // Obtener cuotas del préstamo
+    $loanItems = $this->reports_m->get_reportLI($loan_id);
+
+    // Calcular totales
     $total_pagado = 0;
     $saldo_restante = 0;
     foreach ($loanItems as $li) {
-      if ($li->status == 0) { // Pagado
-        $total_pagado += $li->fee_amount;
-      } else {
-        $saldo_restante += $li->balance;
-      }
+        if ($li->status == 0) { // Pagado
+            $total_pagado += $li->fee_amount;
+        } else {
+            $saldo_restante += $li->balance;
+        }
     }
 
-    $html = '<table border="0">
-    <tr>
-    <td width="120" height="30"><b>Monto credito:</b></td><td width="400" height="30">'.number_format($rc->credit_amount, 0, ',', '.').'</td><td width="120" height="30"><b>Numero Credito:</b></td><td width="55" height="30">'.$rc->id.'</td>
-    </tr>
-    <tr>
-    <td width="120" height="30"><b>Interes credito:</b></td><td width="400" height="30">'.$rc->interest_amount.' %</td><td width="120" height="30"><b>Forma pago:</b></td><td width="55" height="30">'.$rc->payment_m.'</td>
-    </tr>
-    <tr>
-    <td width="120" height="30"><b>Nro cuotas:</b></td><td width="400" height="30">'.$rc->num_fee.'</td><td width="120" height="30"><b>Fecha credito:</b></td><td width="55" height="30">'.$rc->date.'</td>
-    </tr>
-    <tr>
-    <td width="120" height="30"><b>Monto cuota:</b></td><td width="400" height="30">'.number_format($rc->fee_amount, 0, ',', '.').'</td><td width="120" height="30"><b>Estado credito:</b></td><td width="55" height="30">'.($rc->status ? "Pendiente" : "Cancelado").'</td>
-    </tr>
-    <tr>
-    <td width="120" height="30"><b>Total pagado:</b></td><td width="400" height="30">'.number_format($total_pagado, 0, ',', '.').'</td><td width="120" height="30"><b>Saldo restante:</b></td><td width="55" height="30">'.number_format($saldo_restante, 0, ',', '.').'</td>
-    </tr>
-    <tr>
-    <td width="120" height="30"><b>Tipo moneda:</b></td><td width="400" height="30">'.$rc->name.'('.$rc->short_name.')</td><td width="120" height="30"><b></b></td><td width="55" height="30"></td>
-    </tr>
-    </table>';
+    // Información de resumen de pagos
+    $summary_info = [
+        ['Total Pagado:', $pdf->formatCurrency($total_pagado)],
+        ['Saldo Restante:', $pdf->formatCurrency($saldo_restante)],
+        ['Progreso:', count($loanItems) > 0 ? round(($total_pagado / ($total_pagado + $saldo_restante)) * 100, 1) . '%' : '0%']
+    ];
 
-    $pdf->WriteHTML($html);
+    foreach ($summary_info as $info) {
+        $pdf->Cell(60, 8, utf8_decode($info[0]), 0, 0);
+        $pdf->Cell(0, 8, utf8_decode($info[1]), 0, 1);
+    }
 
-    $pdf->Ln(7);
-    $pdf->SetFont('Arial','',10);
+    $pdf->Ln(5);
 
-    $html1 = '';
-    $html1 .= '<table border="1">
-    <tr>
-    <td width="120" height="30"><b>Nro Cuota</b></td><td width="120" height="30"><b>Fecha pago</b></td><td width="120" height="30"><b>Total pagar</b></td><td width="120" height="30"><b>Estado</b></td>
-    </tr>';
+    // Crear sección de tabla de cuotas
+    $pdf->createSection('Detalle de Cuotas', 2);
 
-    $loanItems = $this->reports_m->get_reportLI($rc->id);
+    // Preparar datos de tabla
+    $headers = ['Nro Cuota', 'Fecha de Pago', 'Total a Pagar', 'Estado', 'Fecha de Pago Real'];
+    $table_data = [];
+
     foreach ($loanItems as $li) {
-      $html1 .= '
-    <tr>
-    <td width="120" height="30">'.$li->num_quota.'</td><td width="120" height="30">'.$li->date.'</td><td width="120" height="30">'.number_format($li->fee_amount, 0, ',', '.').'</td><td width="120" height="30">'.($li->status ? "Pendiente" : "Pagado").'</td>
-    </tr>';
+        $estado = ($li->status == 0) ? "Pagado" : "Pendiente";
+        $fecha_pago_real = ($li->status == 0 && $li->pay_date) ? $pdf->formatDate($li->pay_date) : "N/A";
+
+        $table_data[] = [
+            $li->num_quota,
+            $pdf->formatDate($li->date),
+            $pdf->formatCurrency($li->fee_amount),
+            $estado,
+            $fecha_pago_real
+        ];
     }
 
-    $html1 .= '</table>';
+    // Definir anchos de columna
+    $widths = [25, 35, 35, 30, 35];
 
-    $pdf->WriteHTML($html1);
+    // Crear tabla con formato APA
+    $pdf->createTable($headers, $table_data, $widths);
 
-    $pdf->Ln(7);
+    // Agregar sección de referencias si hay referencias
+    $pdf->createReferencesPage();
 
-    }
+    // Generar y enviar el PDF
+    $pdf_content = $pdf->Output('', 'S');
 
-    $pdf->Output('reporte_global_cliente.pdf', 'I');
+    // Configurar headers para descarga
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: attachment; filename="detalle_prestamo_' . $loan_id . '_' . date('Y-m-d_H-i-s') . '.pdf"');
+    header('Content-Length: ' . strlen($pdf_content));
+    header('Cache-Control: private, max-age=0, must-revalidate');
+    header('Pragma: public');
+
+    echo $pdf_content;
+    exit;
   }
 
   /**
@@ -580,6 +785,16 @@ class Reports extends MY_Controller {
       log_message('debug', 'Reports: Cobrador ' . $user->user_name . ' tiene ' . count($user->client_details) . ' clientes');
     }
 
+    // Agregar información de teléfono secundario a los resultados principales
+    foreach ($result as $user) {
+      if (!empty($user->client_details)) {
+        foreach ($user->client_details as $client) {
+          // Agregar phone_fixed si está disponible
+          $client->phone_fixed = $this->_get_client_phone_fixed($client->customer_id);
+        }
+      }
+    }
+
     return $result;
   }
 
@@ -592,6 +807,7 @@ class Reports extends MY_Controller {
       c.id as customer_id,
       CONCAT(c.first_name, ' ', c.last_name) as customer_name,
       c.dni,
+      c.phone_fixed,
       l.id as loan_id,
       l.credit_amount,
       COUNT(li.id) as payments_made,
@@ -616,6 +832,18 @@ class Reports extends MY_Controller {
     $this->db->order_by('total_interest_paid', 'DESC');
 
     return $this->db->get()->result();
+  }
+
+  /**
+   * Obtener teléfono fijo de un cliente
+   */
+  private function _get_client_phone_fixed($customer_id)
+  {
+    $this->db->select('phone_fixed');
+    $this->db->from('customers');
+    $this->db->where('id', $customer_id);
+    $result = $this->db->get()->row();
+    return $result ? $result->phone_fixed : null;
   }
 
   /**
@@ -870,16 +1098,152 @@ class Reports extends MY_Controller {
     $collector_id = $this->input->get('collector_id');
 
     $validated_dates = $this->_validate_date_filters($start_date, $end_date);
-    $data['commissions'] = $this->_get_interest_commissions($validated_dates, $collector_id);
-    $data['start_date'] = $start_date;
-    $data['end_date'] = $end_date;
-    $data['collector_id'] = $collector_id;
+    $commissions = $this->_get_interest_commissions($validated_dates, $collector_id);
 
-    $this->load->library('pdf');
-    $this->pdf->setPaper('A4', 'landscape');
-    $this->pdf->load_view('admin/reports/admin_commissions_pdf', $data);
-    $this->pdf->render();
-    $this->pdf->stream("comisiones_admin_{$start_date}_{$end_date}.pdf", array("Attachment" => 1));
+    // Obtener nombre del usuario logueado
+    $current_user = $this->user_m->get_current_user();
+    $user_name = $current_user ? $current_user->first_name . ' ' . $current_user->last_name : 'Usuario desconocido';
+
+    // Crear instancia PDF con formato APA
+    require_once APPPATH.'third_party/fpdf183/pdf_apa.php';
+    $pdf = new PDF_APA('L', 'mm', 'A4'); // Landscape para mejor visualización de tablas
+    $pdf->setTitle('Reporte Administrativo de Comisiones - Sistema de Préstamos');
+    $pdf->setAuthor($user_name);
+
+    // Agregar referencias APA si es necesario
+    $pdf->addReference('Sistema de Gestión de Préstamos. (2024). Reporte administrativo de comisiones generada automáticamente.');
+    $pdf->addReference('Normas APA. (2023). Manual de publicaciones de la American Psychological Association (7ª ed.).');
+
+    // Crear portada
+    $pdf->createCoverPage();
+
+    // Agregar logo en la primera página de contenido
+    $logoPath = FCPATH . 'assets/img/log.png';
+    if(file_exists($logoPath)) {
+        $pdf->Image($logoPath, $pdf->getMarginLeft(), $pdf->GetY(), 30);
+        $pdf->Ln(35);
+    } else {
+        // Si no existe el logo, continuar sin error
+        $pdf->Ln(10);
+    }
+
+    // Crear secciones con formato APA
+    $pdf->createSection('Información del Reporte', 1);
+
+    // Información del reporte
+    $report_info = [
+        ['Fecha Inicio:', $start_date ?: 'Sin límite'],
+        ['Fecha Fin:', $end_date ?: 'Sin límite'],
+        ['Cobrador:', $collector_id ? 'ID: ' . $collector_id : 'Todos los cobradores'],
+        ['Fecha de Generación:', date('d/m/Y H:i:s')]
+    ];
+
+    foreach ($report_info as $info) {
+        $pdf->Cell(60, 8, utf8_decode($info[0]), 0, 0);
+        $pdf->Cell(0, 8, utf8_decode($info[1]), 0, 1);
+    }
+
+    $pdf->Ln(5);
+
+    if (!empty($commissions)) {
+        // Crear sección de tabla
+        $pdf->createSection('Detalle de Comisiones por Cobrador', 1);
+
+        // Preparar datos de tabla
+        $headers = ['Cobrador', 'Pagos Realizados', 'Interés Total Pagado', 'Comisión 40%', 'Monto Total Cobrado', 'Clientes Atendidos', 'Préstamos Gestionados'];
+        $table_data = [];
+
+        $total_payments = 0;
+        $total_interest = 0;
+        $total_commission = 0;
+        $total_collected = 0;
+        $total_customers = 0;
+        $total_loans = 0;
+
+        foreach ($commissions as $commission) {
+            $total_payments += $commission->total_payments ?? 0;
+            $total_interest += $commission->total_interest_paid ?? 0;
+            $total_commission += $commission->interest_commission_40 ?? 0;
+            $total_collected += $commission->total_amount_collected ?? 0;
+            $total_customers += $commission->customers_handled ?? 0;
+            $total_loans += $commission->loans_handled ?? 0;
+
+            $table_data[] = [
+                $commission->user_name,
+                number_format($commission->total_payments, 0, ',', '.'),
+                $pdf->formatCurrency($commission->total_interest_paid),
+                $pdf->formatCurrency($commission->interest_commission_40),
+                $pdf->formatCurrency($commission->total_amount_collected),
+                number_format($commission->customers_handled, 0, ',', '.'),
+                number_format($commission->loans_handled, 0, ',', '.')
+            ];
+        }
+
+        // Agregar fila de totales
+        $table_data[] = [
+            'TOTALES',
+            number_format($total_payments, 0, ',', '.'),
+            $pdf->formatCurrency($total_interest),
+            $pdf->formatCurrency($total_commission),
+            $pdf->formatCurrency($total_collected),
+            number_format($total_customers, 0, ',', '.'),
+            number_format($total_loans, 0, ',', '.')
+        ];
+
+        // Definir anchos de columna
+        $widths = [40, 30, 35, 35, 35, 30, 30];
+
+        // Crear tabla con formato APA
+        $pdf->createTable($headers, $table_data, $widths);
+
+        // Resumen ejecutivo
+        $pdf->createSection('Resumen Ejecutivo', 1);
+        $pdf->MultiCell(0, 6, utf8_decode('Este reporte administrativo muestra el detalle completo de las comisiones del 40% calculadas sobre los intereses pagados por los clientes. Los datos incluyen información consolidada por cobrador con métricas detalladas de rendimiento.'), 0, 'J');
+        $pdf->Ln(5);
+
+        $summary_info = [
+            ['Total de Cobradores Activos:', count($commissions)],
+            ['Comisión Total a Pagar:', $pdf->formatCurrency($total_commission)],
+            ['Clientes Gestionados:', number_format($total_customers, 0, ',', '.')],
+            ['Préstamos Activos:', number_format($total_loans, 0, ',', '.')]
+        ];
+
+        foreach ($summary_info as $info) {
+            $pdf->Cell(80, 8, utf8_decode($info[0]), 0, 0);
+            $pdf->Cell(0, 8, utf8_decode($info[1]), 0, 1);
+        }
+    } else {
+        $pdf->createSection('Sin Datos Disponibles', 1);
+        $pdf->MultiCell(0, 6, utf8_decode('No se encontraron registros de comisiones para los filtros seleccionados.'), 0, 'L');
+        $pdf->Ln(5);
+
+        $filters_info = [
+            ['Filtros aplicados:'],
+            ['Fecha inicio:', $start_date ?: 'Sin límite'],
+            ['Fecha fin:', $end_date ?: 'Sin límite'],
+            ['Cobrador:', $collector_id ? 'ID: ' . $collector_id : 'Todos']
+        ];
+
+        foreach ($filters_info as $info) {
+            $pdf->Cell(0, 8, utf8_decode(implode(' ', $info)), 0, 1);
+        }
+    }
+
+    // Agregar sección de referencias si hay referencias
+    $pdf->createReferencesPage();
+
+    // Generar y enviar el PDF
+    $pdf_content = $pdf->Output('', 'S');
+
+    // Configurar headers para descarga
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: attachment; filename="comisiones_admin_' . date('Y-m-d_H-i-s') . '.pdf"');
+    header('Content-Length: ' . strlen($pdf_content));
+    header('Cache-Control: private, max-age=0, must-revalidate');
+    header('Pragma: public');
+
+    echo $pdf_content;
+    exit;
   }
 
   /**
@@ -891,15 +1255,104 @@ class Reports extends MY_Controller {
     $end_date = $this->input->get('end_date');
     $collector_id = $this->input->get('collector_id');
 
-    $data['commissions'] = $this->reports_m->get_commission_stats_filtered($start_date, $end_date, $collector_id);
-    $data['start_date'] = $start_date;
-    $data['end_date'] = $end_date;
+    $commissions = $this->reports_m->get_commission_stats_filtered($start_date, $end_date, $collector_id);
 
-    $this->load->library('pdf');
-    $this->pdf->setPaper('A4', 'landscape');
-    $this->pdf->load_view('admin/reports/commissions_pdf', $data);
-    $this->pdf->render();
-    $this->pdf->stream("comisiones_{$start_date}_{$end_date}.pdf", array("Attachment" => 1));
+    // Obtener nombre del usuario logueado
+    $current_user = $this->user_m->get_current_user();
+    $user_name = $current_user ? $current_user->first_name . ' ' . $current_user->last_name : 'Usuario desconocido';
+
+    // Crear instancia PDF con formato APA
+    require_once APPPATH.'third_party/fpdf183/pdf_apa.php';
+    $pdf = new PDF_APA('L', 'mm', 'A4'); // Landscape para mejor visualización de tablas
+    $pdf->setTitle('Reporte de Comisiones (40%) - Sistema de Préstamos');
+    $pdf->setAuthor($user_name);
+
+    // Agregar referencias APA si es necesario
+    $pdf->addReference('Sistema de Gestión de Préstamos. (2024). Reporte de comisiones del 40% generada automáticamente.');
+    $pdf->addReference('Normas APA. (2023). Manual de publicaciones de la American Psychological Association (7ª ed.).');
+
+    // Crear portada
+    $pdf->createCoverPage();
+
+    // Agregar logo en la primera página de contenido
+    $logoPath = FCPATH . 'assets/img/log.png';
+    if(file_exists($logoPath)) {
+        $pdf->Image($logoPath, $pdf->getMarginLeft(), $pdf->GetY(), 30);
+        $pdf->Ln(35);
+    }
+
+    // Crear secciones con formato APA
+    $pdf->createSection('Información del Reporte', 1);
+
+    // Información del reporte
+    $report_info = [
+        ['Desde:', $start_date ?: 'Sin límite'],
+        ['Hasta:', $end_date ?: 'Sin límite'],
+        ['Fecha de Generación:', date('d/m/Y H:i:s')]
+    ];
+
+    foreach ($report_info as $info) {
+        $pdf->Cell(60, 8, utf8_decode($info[0]), 0, 0);
+        $pdf->Cell(0, 8, utf8_decode($info[1]), 0, 1);
+    }
+
+    $pdf->Ln(5);
+
+    if (!empty($commissions)) {
+        // Crear sección de tabla
+        $pdf->createSection('Detalle de Comisiones', 1);
+
+        // Preparar datos de tabla
+        $headers = ['Cliente', 'Cédula', 'Cobrador', 'Total Pagado', 'Interés', 'Comisión (40%)', 'Fecha'];
+        $table_data = [];
+
+        foreach ($commissions as $row) {
+            $table_data[] = [
+                $row->client_name ?? '',
+                $row->client_cedula ?? '',
+                $row->user_name ?? '',
+                $pdf->formatCurrency($row->total_paid ?? 0),
+                number_format($row->interest_amount ?? 0, 2, ',', '.') . '%',
+                $pdf->formatCurrency($row->commission ?? 0),
+                date('d/m/Y H:i', strtotime($row->created_at ?? 'now'))
+            ];
+        }
+
+        // Definir anchos de columna
+        $widths = [35, 25, 35, 30, 20, 30, 35];
+
+        // Crear tabla con formato APA
+        $pdf->createTable($headers, $table_data, $widths);
+
+        // Calcular totales
+        $total_commission = array_sum(array_column($commissions, 'commission'));
+
+        // Resumen
+        $pdf->createSection('Resumen', 1);
+        $pdf->Cell(60, 8, utf8_decode('Total de Comisiones:'), 0, 0);
+        $pdf->Cell(0, 8, utf8_decode($pdf->formatCurrency($total_commission)), 0, 1);
+        $pdf->Cell(60, 8, utf8_decode('Número de Registros:'), 0, 0);
+        $pdf->Cell(0, 8, utf8_decode(count($commissions)), 0, 1);
+    } else {
+        $pdf->createSection('Sin Datos Disponibles', 1);
+        $pdf->MultiCell(0, 6, utf8_decode('No se encontraron registros de comisiones para los filtros seleccionados.'), 0, 'L');
+    }
+
+    // Agregar sección de referencias si hay referencias
+    $pdf->createReferencesPage();
+
+    // Generar y enviar el PDF
+    $pdf_content = $pdf->Output('', 'S');
+
+    // Configurar headers para descarga
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: attachment; filename="comisiones_' . date('Y-m-d_H-i-s') . '.pdf"');
+    header('Content-Length: ' . strlen($pdf_content));
+    header('Cache-Control: private, max-age=0, must-revalidate');
+    header('Pragma: public');
+
+    echo $pdf_content;
+    exit;
   }
 
   /**

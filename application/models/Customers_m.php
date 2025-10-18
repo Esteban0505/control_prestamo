@@ -57,6 +57,11 @@ class Customers_m extends MY_Model {
       'rules' => 'trim|required'
     ),
     array(
+      'field' => 'phone_fixed',
+      'label' => 'teléfono fijo',
+      'rules' => 'trim|required'
+    ),
+    array(
       'field' => 'phone',
       'label' => 'correo electrónico',
       'rules' => 'trim|required|valid_email'
@@ -80,6 +85,7 @@ class Customers_m extends MY_Model {
     $customer->district_id = 0;
     $customer->address = '';
     $customer->mobile = '';
+    $customer->phone_fixed = '';
     $customer->phone = '';
     $customer->user_id = NULL;
     $customer->ruc = '';

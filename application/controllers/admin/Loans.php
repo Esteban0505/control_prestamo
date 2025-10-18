@@ -126,6 +126,17 @@ class Loans extends MY_Controller {
           $amortization_type = 'francesa';
       }
       log_message('debug', 'Valor de amortization_type validado: ' . $amortization_type);
+
+      // Validación adicional: para amortización mixta, solo permitir frecuencia quincenal
+      if ($amortization_type === 'mixta' && $payment_frequency !== 'quincenal') {
+          if ($is_ajax) {
+              echo json_encode(['success' => false, 'error' => 'Para amortización mixta, solo se permite frecuencia de pago quincenal']);
+              return;
+          } else {
+              $this->session->set_flashdata('error', 'Para amortización mixta, solo se permite frecuencia de pago quincenal');
+              redirect('admin/loans/edit');
+          }
+      }
       $start_date = $raw_post['date'];
       $payment_day = date('j', strtotime($start_date));
       $assigned_user_id = $raw_post['assigned_user_id'] ?? null;
@@ -488,7 +499,25 @@ class Loans extends MY_Controller {
   function view($id)
   {
     log_message('debug', 'Cargando vista de préstamo ID: ' . $id);
+
+    // Validar que se proporcione un ID válido
+    if (!$id || !is_numeric($id)) {
+      log_message('error', 'ID de préstamo no válido o no proporcionado: ' . $id);
+      $this->session->set_flashdata('error', 'ID de préstamo no válido o no proporcionado.');
+      redirect('admin/loans');
+      return;
+    }
+
     $data['loan'] = $this->loans_m->get_loan($id);
+
+    // Verificar que el préstamo existe
+    if (!$data['loan']) {
+      log_message('error', 'Préstamo no encontrado con ID: ' . $id);
+      $this->session->set_flashdata('error', 'Préstamo no encontrado.');
+      redirect('admin/loans');
+      return;
+    }
+
     $data['items'] = $this->loans_m->get_loanItems($id);
 
     $this->load->view('admin/loans/view', $data);
@@ -594,6 +623,13 @@ class Loans extends MY_Controller {
         $method = 'francesa';
     }
     log_message('debug', 'Valor de method validado: ' . $method);
+
+    // Validación adicional: para amortización mixta, solo permitir frecuencia quincenal
+    if ($method === 'mixta' && $forma_pago !== 'quincenal') {
+        log_message('error', 'Para amortización mixta, solo se permite frecuencia de pago quincenal');
+        echo json_encode(['success' => false, 'error' => 'Para amortización mixta, solo se permite frecuencia de pago quincenal']);
+        return;
+    }
     if (!in_array($method, ['francesa', 'estaunidense', 'mixta'])) {
         log_message('error', 'Tipo de amortización inválido después de validación: ' . $method);
         echo json_encode(['success' => false, 'error' => 'Debes seleccionar un tipo de amortización válido.']);
@@ -933,131 +969,95 @@ class Loans extends MY_Controller {
       // Calcular resumen
       $summary = $this->amortization->calculate_loan_summary($amortization_table);
 
-      // Generar PDF usando FPDF
-      require_once APPPATH . 'third_party/fpdf183/fpdf.php';
+      // Generar PDF usando formato APA
+      require_once APPPATH . 'third_party/fpdf183/pdf_apa.php';
 
-      $pdf = new FPDF('P', 'mm', 'A4');
-      $pdf->AddPage();
+      // Obtener nombre del usuario logueado
+      $current_user = $this->user_m->get_current_user();
+      $user_name = $current_user ? $current_user->first_name . ' ' . $current_user->last_name : 'Usuario desconocido';
 
-      // Configurar colores del modal (azul principal)
-      $primaryColor = [0, 123, 255]; // Bootstrap primary blue
-      $secondaryColor = [108, 117, 125]; // Bootstrap secondary gray
-      $lightColor = [248, 249, 250]; // Light background
-      $darkColor = [33, 37, 41]; // Dark text
+      // Crear instancia PDF con formato APA
+      $pdf = new PDF_APA('P', 'mm', 'A4');
+      $pdf->setTitle('Tabla de Amortización - Sistema de Préstamos');
+      $pdf->setAuthor($user_name);
 
-      // Configurar fuente y colores
-      $pdf->SetFont('Arial', 'B', 16);
-      $pdf->SetTextColor($primaryColor[0], $primaryColor[1], $primaryColor[2]);
+      // Agregar referencias APA si es necesario
+      $pdf->addReference('Sistema de Gestión de Préstamos. (2024). Tabla de amortización generada automáticamente.');
+      $pdf->addReference('Normas APA. (2023). Manual de publicaciones de la American Psychological Association (7ª ed.).');
 
-      // Título con color
-      $pdf->Cell(0, 10, 'TABLA DE AMORTIZACION', 0, 1, 'C');
-      $pdf->Ln(5);
+      // Crear portada
+      $pdf->createCoverPage();
 
-      // Información del préstamo con colores
-      $pdf->SetFont('Arial', 'B', 12);
-      $pdf->SetTextColor($primaryColor[0], $primaryColor[1], $primaryColor[2]);
-      $pdf->Cell(0, 8, 'INFORMACION DEL PRESTAMO', 0, 1, 'L');
-      $pdf->Ln(2);
+      // Agregar logo en la primera página de contenido
+      $logoPath = FCPATH . 'assets/img/log.png';
+      if(file_exists($logoPath)) {
+          $pdf->Image($logoPath, $pdf->getMarginLeft(), $pdf->GetY(), 30);
+          $pdf->Ln(35);
+      }
 
-      $pdf->SetFont('Arial', '', 10);
-      $pdf->SetTextColor($darkColor[0], $darkColor[1], $darkColor[2]);
-      $pdf->Cell(50, 6, 'Monto del Prestamo:', 0, 0);
-      $pdf->Cell(0, 6, '$ ' . number_format($principal, 0, ',', '.'), 0, 1);
+      // Crear secciones con formato APA
+      $pdf->createSection('Información del Préstamo', 1);
 
-      $pdf->Cell(50, 6, 'Tasa de Interes:', 0, 0);
-      $pdf->Cell(0, 6, number_format($interest_rate, 2, ',', '.') . '% ' . strtoupper($tasa_tipo), 0, 1);
+      // Información del préstamo
+      $loan_info = [
+          ['Monto del Préstamo:', $pdf->formatCurrency($principal)],
+          ['Tasa de Interés:', number_format($interest_rate, 2, ',', '.') . '% ' . strtoupper($tasa_tipo)],
+          ['Plazo:', $periods . ' meses (' . $nro_cuotas . ' cuotas)'],
+          ['Forma de Pago:', ucfirst($payment_frequency)],
+          ['Tipo de Amortización:', ucfirst($method)],
+          ['Fecha de Inicio:', $pdf->formatDate($start_date)],
+          ['Fecha de Pago:', $pdf->formatDate($start_date)]
+      ];
 
-      $pdf->Cell(50, 6, 'Plazo:', 0, 0);
-      $pdf->Cell(0, 6, $periods . ' meses (' . $nro_cuotas . ' cuotas)', 0, 1);
-
-      $pdf->Cell(50, 6, 'Forma de Pago:', 0, 0);
-      $pdf->Cell(0, 6, ucfirst($payment_frequency), 0, 1);
-
-      $pdf->Cell(50, 6, 'Tipo de Amortizacion:', 0, 0);
-      $pdf->Cell(0, 6, ucfirst($method), 0, 1);
-
-      $pdf->Cell(50, 6, 'Fecha de Inicio:', 0, 0);
-      $pdf->Cell(0, 6, date('d/m/Y', strtotime($start_date)), 0, 1);
-
-      $pdf->Cell(50, 6, 'Fecha de Pago:', 0, 0);
-      $pdf->Cell(0, 6, date('d/m/Y', strtotime($start_date)), 0, 1);
+      foreach ($loan_info as $info) {
+          $pdf->Cell(60, 8, utf8_decode($info[0]), 0, 0);
+          $pdf->Cell(0, 8, utf8_decode($info[1]), 0, 1);
+      }
 
       $pdf->Ln(5);
 
       // Resumen financiero
-      $pdf->SetFont('Arial', 'B', 12);
-      $pdf->Cell(0, 8, 'RESUMEN FINANCIERO', 0, 1, 'L');
-      $pdf->Ln(2);
+      $pdf->createSection('Resumen Financiero', 1);
 
-      $pdf->SetFont('Arial', '', 10);
-      $pdf->Cell(50, 6, 'Valor por Cuota:', 0, 0);
-      $pdf->Cell(0, 6, '$ ' . number_format($amortization_table[0]['payment'], 0, ',', '.'), 0, 1);
+      $financial_summary = [
+          ['Valor por Cuota:', $pdf->formatCurrency($amortization_table[0]['payment'])],
+          ['Total de Intereses:', $pdf->formatCurrency($summary['total_interest'])],
+          ['Total a Pagar:', $pdf->formatCurrency($summary['total_payments'])]
+      ];
 
-      $pdf->Cell(50, 6, 'Total de Intereses:', 0, 0);
-      $pdf->Cell(0, 6, '$ ' . number_format($summary['total_interest'], 0, ',', '.'), 0, 1);
-
-      $pdf->Cell(50, 6, 'Total a Pagar:', 0, 0);
-      $pdf->Cell(0, 6, '$ ' . number_format($summary['total_payments'], 0, ',', '.'), 0, 1);
-
-      $pdf->Ln(5);
-
-      // Tabla de amortización con colores
-      $pdf->SetFont('Arial', 'B', 10);
-      $pdf->SetTextColor($primaryColor[0], $primaryColor[1], $primaryColor[2]);
-      $pdf->Cell(0, 8, 'TABLA DE AMORTIZACION DETALLADA', 0, 1, 'L');
-      $pdf->Ln(2);
-
-      // Encabezados de tabla con colores del modal
-      $pdf->SetFont('Arial', 'B', 8);
-      $pdf->SetFillColor($primaryColor[0], $primaryColor[1], $primaryColor[2]); // Azul principal
-      $pdf->SetTextColor(255, 255, 255); // Texto blanco
-
-      $pdf->Cell(15, 8, 'Periodo', 1, 0, 'C', true);
-      $pdf->Cell(25, 8, 'Fecha', 1, 0, 'C', true);
-      $pdf->Cell(25, 8, 'Cuota', 1, 0, 'C', true);
-      $pdf->Cell(25, 8, 'Capital', 1, 0, 'C', true);
-      $pdf->Cell(25, 8, 'Interés', 1, 0, 'C', true);
-      $pdf->Cell(25, 8, 'Saldo', 1, 1, 'C', true);
-
-      // Datos de la tabla con colores alternos
-      $pdf->SetFont('Arial', '', 7);
-      $pdf->SetTextColor($darkColor[0], $darkColor[1], $darkColor[2]);
-      $fill = false;
-      foreach ($amortization_table as $row) {
-        $pdf->SetFillColor($fill ? 248 : 255, $fill ? 249 : 255, $fill ? 250 : 255); // Alternar colores de fila
-        $pdf->Cell(15, 6, $row['period'], 1, 0, 'C', $fill);
-        $pdf->Cell(25, 6, date('d/m/Y', strtotime($row['payment_date'])), 1, 0, 'C', $fill);
-        $pdf->Cell(25, 6, number_format($row['payment'], 0, ',', '.'), 1, 0, 'R', $fill);
-        $pdf->Cell(25, 6, number_format($row['principal'], 0, ',', '.'), 1, 0, 'R', $fill);
-        $pdf->Cell(25, 6, number_format($row['interest'], 0, ',', '.'), 1, 0, 'R', $fill);
-        $pdf->Cell(25, 6, number_format($row['balance'], 0, ',', '.'), 1, 1, 'R', $fill);
-        $fill = !$fill;
-
-        // Nueva página si es necesario
-        if ($pdf->GetY() > 250) {
-          $pdf->AddPage();
-          // Reimprimir encabezados con colores
-          $pdf->SetFont('Arial', 'B', 8);
-          $pdf->SetFillColor($primaryColor[0], $primaryColor[1], $primaryColor[2]);
-          $pdf->SetTextColor(255, 255, 255);
-          $pdf->Cell(15, 8, 'Periodo', 1, 0, 'C', true);
-          $pdf->Cell(25, 8, 'Fecha', 1, 0, 'C', true);
-          $pdf->Cell(25, 8, 'Cuota', 1, 0, 'C', true);
-          $pdf->Cell(25, 8, 'Capital', 1, 0, 'C', true);
-          $pdf->Cell(25, 8, 'Interés', 1, 0, 'C', true);
-          $pdf->Cell(25, 8, 'Saldo', 1, 1, 'C', true);
-          $pdf->SetFont('Arial', '', 7);
-          $pdf->SetTextColor($darkColor[0], $darkColor[1], $darkColor[2]);
-          $fill = false;
-        }
+      foreach ($financial_summary as $summary_item) {
+          $pdf->Cell(60, 8, utf8_decode($summary_item[0]), 0, 0);
+          $pdf->Cell(0, 8, utf8_decode($summary_item[1]), 0, 1);
       }
 
-      // Pie de página con colores
       $pdf->Ln(5);
-      $pdf->SetFont('Arial', 'I', 8);
-      $pdf->SetTextColor($secondaryColor[0], $secondaryColor[1], $secondaryColor[2]);
-      $pdf->Cell(0, 5, 'Documento generado el ' . date('d/m/Y H:i:s'), 0, 1, 'C');
-      $pdf->Cell(0, 5, 'Sistema de Prestamos - Tabla de Amortizacion', 0, 1, 'C');
+
+      // Tabla de amortización con formato APA
+      $pdf->createSection('Tabla de Amortización Detallada', 1);
+
+      // Preparar datos de tabla
+      $headers = ['Período', 'Fecha', 'Cuota', 'Capital', 'Interés', 'Saldo'];
+      $table_data = [];
+
+      foreach ($amortization_table as $row) {
+          $table_data[] = [
+              $row['period'],
+              $pdf->formatDate($row['payment_date']),
+              $pdf->formatCurrency($row['payment']),
+              $pdf->formatCurrency($row['principal']),
+              $pdf->formatCurrency($row['interest']),
+              $pdf->formatCurrency($row['balance'])
+          ];
+      }
+
+      // Definir anchos de columna
+      $widths = [20, 25, 30, 30, 30, 30];
+
+      // Crear tabla con formato APA
+      $pdf->createTable($headers, $table_data, $widths);
+
+      // Agregar sección de referencias si hay referencias
+      $pdf->createReferencesPage();
 
       // Generar y enviar el PDF
       $pdf_content = $pdf->Output('', 'S');

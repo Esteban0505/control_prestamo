@@ -63,12 +63,18 @@ class Amortization {
             throw new Exception('Método de amortización no válido. Debe ser "francesa", "estaunidense" o "mixta".');
         }
 
+        // Forzar frecuencia quincenal para amortización mixta
+        if ($method === 'mixta') {
+            $payment_frequency = 'quincenal';
+            log_message('debug', 'Amortización mixta forzada a frecuencia quincenal');
+        }
+
         // Calcular intervalo de fechas
         $date_interval = $this->get_date_interval($payment_frequency);
-        
+
         // Generar fechas de pago
         $payment_dates = $this->generate_payment_dates($start_date, $periods, $date_interval);
-        
+
         $amortization_table = [];
 
         log_message('debug', 'Método de amortización recibido en calculate_amortization_table: ' . $method);
@@ -83,13 +89,13 @@ class Amortization {
                 break;
             case 'mixta':
                 log_message('debug', 'Usando método mixto');
-                $amortization_table = $this->calculate_mixed_method($principal, $periodic_rate, $periods, $payment_dates);
+                $amortization_table = $this->calculate_mixed_method($principal, $periodic_rate, $periods, $payment_dates, $payment_frequency);
                 break;
             default:
                 log_message('debug', 'Método de amortización no válido recibido: ' . $method);
                 throw new Exception('Método de amortización inválido');
         }
-        
+
         return $amortization_table;
     }
     
@@ -167,36 +173,73 @@ class Amortization {
     }
     
     /**
-     * Método Mixto (Capital fijo + interés sobre saldo)
-     * Se divide el capital en partes iguales y se suma el interés sobre el saldo
+     * Método Mixto (Capital fijo + interés sobre saldo, o alterno para quincenal)
+     * Para quincenal: alterna solo interés y solo capital.
+     * Para otras frecuencias: capital fijo + interés sobre saldo.
      */
-    private function calculate_mixed_method($principal, $periodic_rate, $periods, $payment_dates) {
+    private function calculate_mixed_method($principal, $periodic_rate, $periods, $payment_dates, $payment_frequency) {
         $amortization_table = [];
-        $base_principal_payment = $principal / $periods;
         $balance = $principal;
-        
-        for ($i = 0; $i < $periods; $i++) {
-            $interest_payment = $balance * $periodic_rate;
-            $principal_payment = $base_principal_payment;
-            
-            // Ajustar la última cuota para evitar diferencias por redondeo
-            if ($i == $periods - 1) {
-                $principal_payment = $balance; // Pago el saldo restante
+
+        if ($payment_frequency === 'quincenal') {
+            // Patrón alterno: primer pago solo interés, segundo solo capital, y así sucesivamente
+            for ($i = 0; $i < $periods; $i++) {
+                if (($i % 2) == 0) {
+                    // Pagos impares (1,3,5,...): solo interés
+                    $interest_payment = $balance * $periodic_rate;
+                    $principal_payment = 0;
+                    $payment = $interest_payment;
+                } else {
+                    // Pagos pares (2,4,6,...): solo capital
+                    $interest_payment = 0;
+                    $principal_payment = $balance; // Pagar todo el capital restante en el último pago de capital
+                    $payment = $principal_payment;
+                    $balance = 0; // Después de pagar capital, balance es 0
+                }
+
+                // Para el último período, ajustar si es necesario
+                if ($i == $periods - 1 && $balance > 0) {
+                    $principal_payment = $balance;
+                    $payment = $principal_payment + $interest_payment;
+                    $balance = 0;
+                }
+
+                $amortization_table[] = [
+                    'period' => $i + 1,
+                    'payment_date' => $payment_dates[$i],
+                    'payment' => round($payment, 2),
+                    'principal' => round($principal_payment, 2),
+                    'interest' => round($interest_payment, 2),
+                    'balance' => round($balance, 2)
+                ];
             }
-            
-            $payment = $principal_payment + $interest_payment;
-            $balance = $balance - $principal_payment;
-            
-            $amortization_table[] = [
-                'period' => $i + 1,
-                'payment_date' => $payment_dates[$i],
-                'payment' => round($payment, 2),
-                'principal' => round($principal_payment, 2),
-                'interest' => round($interest_payment, 2),
-                'balance' => round($balance, 2)
-            ];
+        } else {
+            // Lógica original para otras frecuencias: capital fijo + interés sobre saldo
+            $base_principal_payment = $principal / $periods;
+
+            for ($i = 0; $i < $periods; $i++) {
+                $interest_payment = $balance * $periodic_rate;
+                $principal_payment = $base_principal_payment;
+
+                // Ajustar la última cuota para evitar diferencias por redondeo
+                if ($i == $periods - 1) {
+                    $principal_payment = $balance; // Pago el saldo restante
+                }
+
+                $payment = $principal_payment + $interest_payment;
+                $balance = $balance - $principal_payment;
+
+                $amortization_table[] = [
+                    'period' => $i + 1,
+                    'payment_date' => $payment_dates[$i],
+                    'payment' => round($payment, 2),
+                    'principal' => round($principal_payment, 2),
+                    'interest' => round($interest_payment, 2),
+                    'balance' => round($balance, 2)
+                ];
+            }
         }
-        
+
         return $amortization_table;
     }
     

@@ -1352,6 +1352,94 @@ $(document).ready(function() {
     }, 5000);
   }
 
+  // ================================
+  // VALIDACIONES DE TELÉFONO
+  // ================================
+
+  // Función para validar formato de teléfono móvil (9-11 dígitos)
+  function validateMobilePhone(value) {
+    if (!value || value === '') return true; // Vacío es válido (se maneja con required)
+    // Solo números, entre 9 y 11 dígitos
+    return /^\d{9,11}$/.test(value.toString().replace(/\s/g, ''));
+  }
+
+  // Función para validar formato de teléfono fijo (7-9 dígitos)
+  function validateFixedPhone(value) {
+    if (!value || value === '') return true; // Vacío es válido (se maneja con required)
+    // Solo números, entre 7 y 9 dígitos
+    return /^\d{7,9}$/.test(value.toString().replace(/\s/g, ''));
+  }
+
+  // Función para validar obligatoriedad de campos telefónicos
+  function validatePhoneRequired(fieldId) {
+    var value = $('#' + fieldId).val();
+    if (!value || value.trim() === '') {
+      showErrorMessage('Este campo es obligatorio');
+      $('#' + fieldId).focus();
+      return false;
+    }
+    return true;
+  }
+
+  // Función para validar formato telefónico
+  function validatePhoneFormat(fieldId) {
+    var value = $('#' + fieldId).val();
+    var isValid = true;
+
+    if (fieldId === 'mobile') {
+      isValid = validateMobilePhone(value);
+      if (!isValid) {
+        showErrorMessage('El celular debe contener solo números y tener entre 9 y 11 dígitos.');
+        $('#' + fieldId).focus();
+      }
+    } else if (fieldId === 'phone_fixed') {
+      isValid = validateFixedPhone(value);
+      if (!isValid) {
+        showErrorMessage('El teléfono fijo debe contener solo números y tener entre 7 y 9 dígitos.');
+        $('#' + fieldId).focus();
+      }
+    }
+
+    return isValid;
+  }
+
+  // Event listeners para validación en tiempo real de teléfonos
+  $(document).on('input', '#mobile, #phone_fixed', function() {
+    var fieldId = $(this).attr('id');
+    var value = $(this).val();
+
+    // Limpiar clases de error previas
+    $(this).removeClass('is-invalid');
+
+    // Validar formato mientras escribe
+    if (value && !validatePhoneFormat(fieldId)) {
+      $(this).addClass('is-invalid');
+    } else {
+      $(this).removeClass('is-invalid');
+    }
+  });
+
+  // Validación completa de teléfonos (obligatoriedad + formato)
+  function validatePhoneFields() {
+    var isValid = true;
+
+    // Validar celular
+    if (!validatePhoneRequired('mobile')) {
+      isValid = false;
+    } else if (!validatePhoneFormat('mobile')) {
+      isValid = false;
+    }
+
+    // Validar teléfono fijo
+    if (!validatePhoneRequired('phone_fixed')) {
+      isValid = false;
+    } else if (!validatePhoneFormat('phone_fixed')) {
+      isValid = false;
+    }
+
+    return isValid;
+  }
+
   // Evento para descargar PDF desde el modal
   $('#download_pdf, #download_pdf_footer').on('click', function(e) {
     e.preventDefault();
@@ -1394,6 +1482,11 @@ $(document).ready(function() {
         alert('Por favor, selecciona un usuario cobrador.');
         return false;
       }
+    }
+
+    // Validar campos telefónicos antes del envío
+    if (!validatePhoneFields()) {
+      return false;
     }
 
     if($("#customer").val() == "") {

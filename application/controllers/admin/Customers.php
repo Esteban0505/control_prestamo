@@ -43,7 +43,7 @@ class Customers extends MY_Controller {
     if ($this->form_validation->run() == TRUE) {
       log_message('debug', '[DEBUG] Validación del formulario PASÓ');
 
-      $cst_data = $this->customers_m->array_from_post(['dni','first_name', 'last_name', 'gender', 'department_id', 'province_id', 'district_id', 'mobile', 'address', 'phone', 'user_id', 'ruc', 'company', 'tipo_cliente']);
+      $cst_data = $this->customers_m->array_from_post(['dni','first_name', 'last_name', 'gender', 'department_id', 'province_id', 'district_id', 'mobile', 'phone_fixed', 'address', 'phone', 'user_id', 'ruc', 'company', 'tipo_cliente']);
       log_message('debug', '[DEBUG] Datos extraídos del POST: ' . json_encode($cst_data));
 
       $save_result = $this->customers_m->save($cst_data, $id);
@@ -79,6 +79,112 @@ class Customers extends MY_Controller {
   public function ajax_getDistricts($pr_id)
   {
     echo $this->customers_m->get_districts($pr_id);
+  }
+
+  public function view($id = NULL)
+  {
+    if (!$id) {
+      show_error('ID de cliente no especificado', 400);
+      return;
+    }
+
+    log_message('debug', '[DEBUG] Iniciando método view() - ID: ' . $id);
+
+    // Obtener datos del cliente
+    $data['customer'] = $this->customers_m->get($id);
+    if (!$data['customer']) {
+      show_error('Cliente no encontrado', 404);
+      return;
+    }
+
+    // Cargar modelos necesarios
+    $this->load->model('loans_m');
+    $this->load->model('payments_m');
+
+    // Obtener préstamos del cliente con información detallada
+    $this->db->select('l.*, co.name as coin_name, co.short_name as coin_short,
+                      CONCAT(u.first_name, " ", u.last_name) as asesor_name');
+    $this->db->from('loans l');
+    $this->db->join('coins co', 'co.id = l.coin_id', 'left');
+    $this->db->join('users u', 'u.id = l.assigned_user_id', 'left');
+    $this->db->where('l.customer_id', $id);
+    $this->db->order_by('l.date', 'desc');
+    $query = $this->db->get();
+    $loans = $query->result();
+
+    // Agregar status_text manualmente para evitar problemas de sintaxis
+    foreach ($loans as $loan) {
+        switch ($loan->status) {
+            case 0:
+                $loan->status_text = "Pagado";
+                break;
+            case 1:
+                $loan->status_text = "Activo";
+                break;
+            case 2:
+                $loan->status_text = "Castigado";
+                break;
+            default:
+                $loan->status_text = "Desconocido";
+        }
+    }
+
+    // Preparar datos resumidos de préstamos
+    $loan_summary = [
+      'total_loans' => count($loans),
+      'active_loans' => 0,
+      'paid_loans' => 0,
+      'penalized_loans' => 0,
+      'total_amount' => 0,
+      'total_balance' => 0,
+      'total_paid' => 0
+    ];
+
+    foreach ($loans as $loan) {
+      $loan_summary['total_amount'] += $loan->credit_amount;
+
+      if ($loan->status == 1) {
+        $loan_summary['active_loans']++;
+      } elseif ($loan->status == 0) {
+        $loan_summary['paid_loans']++;
+      } elseif ($loan->status == 2) {
+        $loan_summary['penalized_loans']++;
+      }
+
+      // Calcular balance pendiente para préstamos activos
+      if ($loan->status == 1) {
+        $this->db->select('SUM(COALESCE(balance, 0)) as balance');
+        $this->db->from('loan_items');
+        $this->db->where('loan_id', $loan->id);
+        $balance_result = $this->db->get()->row();
+        $loan->current_balance = $balance_result ? $balance_result->balance : 0;
+        $loan_summary['total_balance'] += $loan->current_balance;
+        $loan_summary['total_paid'] += ($loan->credit_amount - $loan->current_balance);
+      } else {
+        $loan->current_balance = 0;
+      }
+    }
+
+    $data['loans'] = $loans;
+    $data['loan_summary'] = $loan_summary;
+
+    // Obtener información adicional del cliente
+    $data['customer']->quota = $this->customers_m->get_customer_quota($id);
+    $data['customer']->loan_count = $this->customers_m->get_customer_loan_count($id);
+    $data['customer']->is_blacklisted = $this->customers_m->check_blacklist($id);
+
+    // Obtener estadísticas de pagos vencidos si tiene préstamos activos
+    if ($loan_summary['active_loans'] > 0) {
+      $overdue_info = $this->payments_m->get_overdue_clients(null, null, null, null);
+      $data['overdue_info'] = array_filter($overdue_info, function($client) use ($id) {
+        return $client->customer_id == $id;
+      });
+      $data['overdue_info'] = !empty($data['overdue_info']) ? reset($data['overdue_info']) : null;
+    }
+
+    $data['title'] = 'Detalles del Cliente: ' . $data['customer']->first_name . ' ' . $data['customer']->last_name;
+    $data['subview'] = 'admin/customers/view';
+    $this->load->view('admin/_main_layout', $data);
   }
 
   public function check_dni_ajax()

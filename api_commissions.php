@@ -97,48 +97,34 @@ try {
         $client->commission_status = 'pendiente';
         $client->commission_sent_at = null;
 
-        $sql_commission = "SELECT status, sent_at FROM collector_commissions
-                          WHERE user_id = ? AND loan_id = ? AND client_id = ?
-                          ORDER BY created_at DESC LIMIT 1";
-
-        $stmt_commission = $conn->prepare($sql_commission);
-        if ($stmt_commission) {
-            $stmt_commission->bind_param('iii', $user_id, $client->loan_id, $client->customer_id);
-            $stmt_commission->execute();
-            $result_commission = $stmt_commission->get_result();
-            if ($row_commission = $result_commission->fetch_object()) {
-                $client->commission_status = $row_commission->status ?? 'pendiente';
-                $client->commission_sent_at = $row_commission->sent_at;
-            }
-            $stmt_commission->close();
-        }
+        // La tabla collector_commissions no tiene campos status ni sent_at
+        // Por ahora, marcar todos como pendientes ya que no hay tracking de envío
     }
 
     // Estado general (para compatibilidad con código existente)
     $send_status = 'pendiente';
-    $sql_general_status = "SELECT status FROM collector_commissions WHERE user_id = ? ORDER BY created_at DESC LIMIT 1";
-    $stmt_general = $conn->prepare($sql_general_status);
-    if ($stmt_general) {
-        $stmt_general->bind_param('i', $user_id);
-        $stmt_general->execute();
-        $result_general = $stmt_general->get_result();
-        if ($row_general = $result_general->fetch_object()) {
-            $send_status = $row_general->status ?? 'pendiente';
-        }
-        $stmt_general->close();
-    }
 
     $conn->close();
 
-    echo json_encode([
+    // Asegurar que la respuesta JSON sea válida
+    $response = [
         'clients' => $clients,
         'total_interest' => $total_interest,
         'total_commission' => $total_commission,
         'send_status' => $send_status
-    ]);
+    ];
+
+    // Verificar que no haya datos corruptos antes de enviar
+    $json_output = json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($json_output === false) {
+        echo json_encode(['error' => 'Error al generar respuesta JSON']);
+    } else {
+        echo $json_output;
+    }
 
 } catch (Exception $e) {
-    echo json_encode(['error' => 'Error interno del servidor: ' . $e->getMessage()]);
+    $error_response = ['error' => 'Error interno del servidor: ' . $e->getMessage()];
+    echo json_encode($error_response);
 }
 
 exit;

@@ -36,6 +36,7 @@
            { id: 'district_id', name: 'district_id', type: 'select' },
            { id: 'address', name: 'address', type: 'text' },
            { id: 'mobile', name: 'mobile', type: 'text' },
+           { id: 'phone_fixed', name: 'phone_fixed', type: 'text' },
            { id: 'phone', name: 'phone', type: 'text' },
            { id: 'user_id', name: 'user_id', type: 'select' }
          ];
@@ -69,6 +70,11 @@
              case 'mobile':
                if (!/^\d{9,11}$/.test(value)) {
                  return 'El celular debe contener solo números y tener entre 9 y 11 dígitos.';
+               }
+               break;
+             case 'phone_fixed':
+               if (!/^\d{7,9}$/.test(value)) {
+                 return 'El teléfono fijo debe contener solo números y tener entre 7 y 9 dígitos.';
                }
                break;
              default:
@@ -258,12 +264,17 @@
     <div class="form-section mb-4">
       <h5 class="text-primary mb-3"><i class="fas fa-phone"></i> Información de Contacto</h5>
       <div class="row">
-        <div class="col-lg-6 col-md-12 mb-3">
+        <div class="col-lg-4 col-md-12 mb-3">
           <label class="small mb-1" for="mobile">Ingresar celular <span class="text-danger">*</span></label>
           <input class="form-control" id="mobile" type="text" name="mobile" value="<?php echo set_value('mobile', $this->input->post('mobile') ? $this->input->post('mobile') : $customer->mobile); ?>">
           <div class="error-message" id="error-mobile" style="display:none; color:red;"></div>
         </div>
-        <div class="col-lg-6 col-md-12 mb-3">
+        <div class="col-lg-4 col-md-12 mb-3">
+          <label class="small mb-1" for="phone_fixed">Ingresar teléfono fijo <span class="text-danger">*</span></label>
+          <input class="form-control" id="phone_fixed" type="text" name="phone_fixed" value="<?php echo set_value('phone_fixed', $this->input->post('phone_fixed') ? $this->input->post('phone_fixed') : $customer->phone_fixed); ?>">
+          <div class="error-message" id="error-phone_fixed" style="display:none; color:red;"></div>
+        </div>
+        <div class="col-lg-4 col-md-12 mb-3">
           <label class="small mb-1" for="phone">Correo electrónico<span class="text-danger">*</span></label>
           <input class="form-control" id="phone" type="email" name="phone" value="<?php echo set_value('phone', $this->input->post('phone') ? $this->input->post('phone') : $customer->phone); ?>">
           <div class="error-message" id="error-phone" style="display:none; color:red;">Este campo es obligatorio</div>

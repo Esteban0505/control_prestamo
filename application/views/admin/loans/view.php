@@ -3,18 +3,29 @@
   <div class="modal-content">
     <div class="modal-header bg-primary text-white">
       <!-- Logo y título -->
-      <div class="d-flex align-items-center">
+      <div class="d-flex align-items-center flex-grow-1">
         <img src="<?php echo base_url('assets/img/log.png'); ?>" alt="Logo CREDITOS VALU" style="width: 40px; height: 40px; margin-right: 15px; border-radius: 8px;">
-        <div>
-          <h5 class="modal-title mb-1" id="staticBackdropLabel">
-            <i class="fas fa-credit-card mr-2"></i>Préstamo #<?php echo $loan->id ?>
-          </h5>
-          <small class="text-white-50">
-            <i class="fas fa-user mr-1"></i>Cliente: <?= $loan->customer_name; ?>
-          </small>
+        <div class="flex-grow-1">
+          <div class="d-flex align-items-center justify-content-between">
+            <div>
+              <h5 class="modal-title mb-1" id="staticBackdropLabel">
+                <i class="fas fa-credit-card mr-2"></i>Préstamo #<?php echo $loan->id ?>
+              </h5>
+              <small class="text-white-50">
+                <i class="fas fa-user mr-1"></i>Cliente: <?= $loan->customer_name; ?>
+              </small>
+            </div>
+            <!-- Indicador de Estado Prominente -->
+            <div class="ml-3">
+              <?php echo $loan->status ?
+                '<span class="badge badge-warning badge-lg px-3 py-2"><i class="fas fa-clock mr-2"></i>ACTIVO</span>' :
+                '<span class="badge badge-success badge-lg px-3 py-2"><i class="fas fa-check-circle mr-2"></i>COMPLETADO</span>';
+              ?>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="d-flex">
+      <div class="d-flex ml-3">
         <button type="button" class="btn btn-light btn-sm mr-2" onclick="window.print();" title="Imprimir">
           <i class="fas fa-print"></i>
         </button>
@@ -33,85 +44,100 @@
           </h6>
         </div>
         <div class="card-body">
-          <div class="row">
-            <!-- Columna Izquierda -->
-            <div class="col-lg-6 col-md-12">
-              <div class="row mb-3">
+          <!-- Información Principal - Agrupada por importancia -->
+          <div class="row mb-4">
+            <!-- Monto y Cuotas - Información crítica -->
+            <div class="col-lg-6 col-md-12 mb-3">
+              <div class="row">
                 <div class="col-6">
-                  <div class="text-center p-3 bg-light rounded">
-                    <i class="fas fa-dollar-sign fa-2x text-success mb-2"></i>
-                    <h6 class="font-weight-bold text-success mb-1">Monto del Crédito</h6>
-                    <h4 class="text-success font-weight-bold">$<?= number_format($loan->credit_amount, 2); ?></h4>
+                  <div class="text-center p-3 bg-success text-white rounded shadow-sm h-100">
+                    <i class="fas fa-dollar-sign fa-2x mb-2"></i>
+                    <h6 class="font-weight-bold mb-1">Monto del Crédito</h6>
+                    <h4 class="font-weight-bold">$<?= number_format($loan->credit_amount, 2); ?></h4>
                   </div>
                 </div>
                 <div class="col-6">
-                  <div class="text-center p-3 bg-light rounded">
-                    <i class="fas fa-percentage fa-2x text-warning mb-2"></i>
-                    <h6 class="font-weight-bold text-warning mb-1">Tasa de Interés</h6>
-                    <h4 class="text-warning font-weight-bold"><?php echo $loan->interest_amount; ?>%</h4>
-                  </div>
-                </div>
-              </div>
-              <div class="row mb-3">
-                <div class="col-6">
-                  <div class="text-center p-3 bg-light rounded">
-                    <i class="fas fa-hashtag fa-2x text-info mb-2"></i>
-                    <h6 class="font-weight-bold text-info mb-1">Número de Cuotas</h6>
-                    <h4 class="text-info font-weight-bold"><?php echo $loan->num_fee; ?></h4>
-                  </div>
-                </div>
-                <div class="col-6">
-                  <div class="text-center p-3 bg-light rounded">
-                    <i class="fas fa-coins fa-2x text-primary mb-2"></i>
-                    <h6 class="font-weight-bold text-primary mb-1">Monto por Cuota</h6>
-                    <h4 class="text-primary font-weight-bold">$<?= number_format($loan->fee_amount, 2); ?></h4>
+                  <div class="text-center p-3 bg-primary text-white rounded shadow-sm h-100">
+                    <i class="fas fa-coins fa-2x mb-2"></i>
+                    <h6 class="font-weight-bold mb-1">Cuota Mensual</h6>
+                    <h4 class="font-weight-bold">$<?= number_format($loan->fee_amount, 2); ?></h4>
                   </div>
                 </div>
               </div>
             </div>
 
-            <!-- Columna Derecha -->
-            <div class="col-lg-6 col-md-12">
-              <div class="card border-0 bg-gradient-primary text-white mb-3">
+            <!-- Condiciones del Préstamo -->
+            <div class="col-lg-6 col-md-12 mb-3">
+              <div class="row">
+                <div class="col-6">
+                  <div class="text-center p-3 bg-warning text-white rounded shadow-sm h-100">
+                    <i class="fas fa-percentage fa-2x mb-2"></i>
+                    <h6 class="font-weight-bold mb-1">Tasa de Interés</h6>
+                    <h4 class="font-weight-bold"><?php echo $loan->interest_amount; ?>%</h4>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="text-center p-3 bg-info text-white rounded shadow-sm h-100">
+                    <i class="fas fa-hashtag fa-2x mb-2"></i>
+                    <h6 class="font-weight-bold mb-1">Número de Cuotas</h6>
+                    <h4 class="font-weight-bold"><?php echo $loan->num_fee; ?></h4>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Resumen Financiero y Detalles Operativos -->
+          <div class="row">
+            <!-- Resumen Financiero -->
+            <div class="col-lg-6 col-md-12 mb-3">
+              <div class="card border-0 bg-gradient-primary text-white shadow-sm">
                 <div class="card-body">
                   <h6 class="font-weight-bold mb-3">
                     <i class="fas fa-chart-line mr-2"></i>Resumen Financiero
                   </h6>
-                  <div class="row">
+                  <div class="row text-center">
                     <div class="col-6">
-                      <small>Monto Total a Pagar:</small>
-                      <h5 class="font-weight-bold">$<?= number_format($loan->credit_amount + ($loan->credit_amount * $loan->interest_amount / 100), 2); ?></h5>
+                      <div class="border-right border-white">
+                        <small class="d-block">Total a Pagar</small>
+                        <h5 class="font-weight-bold mb-0">$<?= number_format($loan->credit_amount + ($loan->credit_amount * $loan->interest_amount / 100), 2); ?></h5>
+                      </div>
                     </div>
                     <div class="col-6">
-                      <small>Interés Total:</small>
-                      <h5 class="font-weight-bold">$<?= number_format($loan->credit_amount * $loan->interest_amount / 100, 2); ?></h5>
+                      <small class="d-block">Interés Total</small>
+                      <h5 class="font-weight-bold mb-0">$<?= number_format($loan->credit_amount * $loan->interest_amount / 100, 2); ?></h5>
                     </div>
                   </div>
                 </div>
               </div>
+            </div>
 
+            <!-- Detalles Operativos -->
+            <div class="col-lg-6 col-md-12">
               <div class="row">
-                <div class="col-6">
-                  <strong><i class="fas fa-calendar-alt mr-1"></i>Fecha del Crédito:</strong><br>
-                  <span class="badge badge-light text-dark"><?php echo date('d/m/Y', strtotime($loan->date)); ?></span>
-                </div>
-                <div class="col-6">
-                  <strong><i class="fas fa-money-bill-wave mr-1"></i>Forma de Pago:</strong><br>
-                  <span class="badge badge-light text-dark"><?php echo $loan->payment_m; ?></span>
-                </div>
-              </div>
-
-              <div class="row mt-3">
-                <div class="col-6">
-                  <strong><i class="fas fa-globe mr-1"></i>Moneda:</strong><br>
-                  <span class="badge badge-light text-dark"><?php echo strtoupper($loan->short_name); ?></span>
-                </div>
-                <div class="col-6">
-                  <strong><i class="fas fa-info-circle mr-1"></i>Estado:</strong><br>
-                  <?php echo $loan->status ?
-                    '<span class="badge badge-danger badge-lg"><i class="fas fa-clock mr-1"></i>Pendiente</span>' :
-                    '<span class="badge badge-success badge-lg"><i class="fas fa-check-circle mr-1"></i>Pagado</span>';
-                  ?>
+                <!-- Fecha y Forma de Pago -->
+                <div class="col-12 mb-3">
+                  <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                      <div class="row text-center">
+                        <div class="col-4">
+                          <i class="fas fa-calendar-alt fa-2x text-secondary mb-2"></i>
+                          <h6 class="font-weight-bold text-secondary mb-1">Fecha Inicio</h6>
+                          <span class="badge badge-light text-dark px-2 py-1"><?php echo date('d/m/Y', strtotime($loan->date)); ?></span>
+                        </div>
+                        <div class="col-4">
+                          <i class="fas fa-money-bill-wave fa-2x text-secondary mb-2"></i>
+                          <h6 class="font-weight-bold text-secondary mb-1">Frecuencia</h6>
+                          <span class="badge badge-light text-dark px-2 py-1"><?php echo $loan->payment_m; ?></span>
+                        </div>
+                        <div class="col-4">
+                          <i class="fas fa-globe fa-2x text-secondary mb-2"></i>
+                          <h6 class="font-weight-bold text-secondary mb-1">Moneda</h6>
+                          <span class="badge badge-light text-dark px-2 py-1"><?php echo strtoupper($loan->short_name); ?></span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -320,14 +346,47 @@
         }
       
         /* Ajustar anchos de columnas para impresión */
-        .col-lg-6, .col-md-12 {
+        .col-lg-6, .col-md-12, .col-12, .col-md-6 {
           flex: 0 0 50% !important;
           max-width: 50% !important;
         }
-      
-        .col-lg-3, .col-md-6 {
+
+        .col-lg-3, .col-md-6, .col-6 {
           flex: 0 0 25% !important;
           max-width: 25% !important;
+        }
+
+        .col-4 {
+          flex: 0 0 33.333333% !important;
+          max-width: 33.333333% !important;
+        }
+
+        /* Ajustar elementos del panel de progreso para impresión */
+        .progress {
+          height: 20px !important;
+          background: #e9ecef !important;
+          border: 1px solid #000 !important;
+          -webkit-print-color-adjust: exact;
+          color-adjust: exact;
+        }
+
+        .progress-bar {
+          background: #28a745 !important;
+          -webkit-print-color-adjust: exact;
+          color-adjust: exact;
+        }
+
+        /* Ajustar cards del resumen visual */
+        .bg-success, .bg-warning, .bg-danger {
+          -webkit-print-color-adjust: exact;
+          color-adjust: exact;
+        }
+
+        /* Ajustar badges del estado */
+        .badge-success, .badge-warning, .badge-danger, .badge-info, .badge-primary {
+          border: 1px solid #000 !important;
+          -webkit-print-color-adjust: exact;
+          color-adjust: exact;
         }
       
         /* Ajustar números formateados */
@@ -527,11 +586,12 @@
             <table class="table table-hover">
               <thead class="thead-dark">
                 <tr>
-                  <th class="text-center" width="8%"><i class="fas fa-hashtag"></i></th>
-                  <th class="text-center" width="25%"><i class="fas fa-calendar-day mr-1"></i>Fecha de Pago</th>
-                  <th class="text-right" width="25%"><i class="fas fa-dollar-sign mr-1"></i>Monto a Pagar</th>
-                  <th class="text-center" width="20%"><i class="fas fa-info-circle mr-1"></i>Estado</th>
-                  <th class="text-center" width="22%"><i class="fas fa-clock mr-1"></i>Días Restantes</th>
+                  <th class="text-center" width="8%"><i class="fas fa-hashtag"></i> #</th>
+                  <th class="text-center" width="20%"><i class="fas fa-calendar-day mr-1"></i>Fecha Vencimiento</th>
+                  <th class="text-right" width="20%"><i class="fas fa-dollar-sign mr-1"></i>Valor Cuota</th>
+                  <th class="text-center" width="15%"><i class="fas fa-tasks mr-1"></i>Estado</th>
+                  <th class="text-center" width="20%"><i class="fas fa-clock mr-1"></i>Estado de Pago</th>
+                  <th class="text-center" width="17%"><i class="fas fa-calendar-alt mr-1"></i>Días</th>
                 </tr>
               </thead>
               <tbody>
@@ -542,37 +602,43 @@
                   foreach ($items as $item) {
                     $i++;
                     $status = ($item->status) ?
-                      '<span class="badge badge-warning badge-lg"><i class="fas fa-clock mr-1"></i>Pendiente</span>' :
-                      '<span class="badge badge-success badge-lg"><i class="fas fa-check-circle mr-1"></i>Cancelado</span>';
+                      '<span class="badge badge-warning badge-lg px-2 py-1"><i class="fas fa-clock mr-1"></i>Pendiente</span>' :
+                      '<span class="badge badge-success badge-lg px-2 py-1"><i class="fas fa-check-circle mr-1"></i>Pagada</span>';
 
                     $date_diff = strtotime($item->date) - strtotime($today);
                     $days_remaining = floor($date_diff / (60 * 60 * 24));
 
+                    $payment_status = '';
                     $days_display = '';
-                    if ($item->status) { // Solo mostrar días si está pendiente
-                      if ($days_remaining < 0) {
-                        $days_display = '<span class="badge badge-danger"><i class="fas fa-exclamation-triangle mr-1"></i>Vencido (' . abs($days_remaining) . ' días)</span>';
-                      } elseif ($days_remaining == 0) {
-                        $days_display = '<span class="badge badge-warning"><i class="fas fa-calendar-day mr-1"></i>Hoy</span>';
-                      } else {
-                        $days_display = '<span class="badge badge-info"><i class="fas fa-calendar-alt mr-1"></i>' . $days_remaining . ' días</span>';
-                      }
+                    if (!$item->status) { // Ya pagada
+                      $payment_status = '<span class="badge badge-success px-2 py-1"><i class="fas fa-check-double mr-1"></i>Pagada</span>';
+                      $days_display = '<span class="text-muted"><i class="fas fa-check mr-1"></i>-</span>';
+                    } elseif ($days_remaining < 0) {
+                      $payment_status = '<span class="badge badge-danger px-2 py-1"><i class="fas fa-exclamation-triangle mr-1"></i>Vencida</span>';
+                      $days_display = '<span class="text-danger font-weight-bold">' . abs($days_remaining) . ' días</span>';
+                    } elseif ($days_remaining == 0) {
+                      $payment_status = '<span class="badge badge-warning px-2 py-1"><i class="fas fa-calendar-day mr-1"></i>Vence Hoy</span>';
+                      $days_display = '<span class="text-warning font-weight-bold">0 días</span>';
                     } else {
-                      $days_display = '<span class="badge badge-secondary"><i class="fas fa-check mr-1"></i>Pagado</span>';
+                      $payment_status = '<span class="badge badge-info px-2 py-1"><i class="fas fa-calendar-alt mr-1"></i>Próxima</span>';
+                      $days_display = '<span class="text-info font-weight-bold">' . $days_remaining . ' días</span>';
                     }
 
                     $row_class = '';
-                    if ($item->status && $days_remaining < 0) {
+                    if (!$item->status) {
+                      $row_class = 'table-success';
+                    } elseif ($days_remaining < 0) {
                       $row_class = 'table-danger';
-                    } elseif ($item->status && $days_remaining == 0) {
+                    } elseif ($days_remaining == 0) {
                       $row_class = 'table-warning';
                     }
 
                     echo '<tr class="' . $row_class . '">';
                     echo '<td class="text-center font-weight-bold">' . $i . '</td>';
-                    echo '<td class="text-center">' . date('d/m/Y', strtotime($item->date)) . '</td>';
+                    echo '<td class="text-center"><strong>' . date('d/m/Y', strtotime($item->date)) . '</strong></td>';
                     echo '<td class="text-right"><strong class="text-primary">$ ' . number_format($item->fee_amount, 2) . '</strong></td>';
                     echo '<td class="text-center">' . $status . '</td>';
+                    echo '<td class="text-center">' . $payment_status . '</td>';
                     echo '<td class="text-center">' . $days_display . '</td>';
                     echo '</tr>';
                   }
@@ -585,33 +651,62 @@
           </div>
 
           <?php if ($items && count($items) > 0): ?>
-          <div class="row mt-3">
-            <div class="col-md-6">
-              <div class="card border-info">
+          <!-- Panel de Resumen Visual Mejorado -->
+          <div class="row mt-4">
+            <!-- Barra de Progreso General -->
+            <div class="col-12 mb-3">
+              <div class="card border-primary shadow-sm">
                 <div class="card-body p-3">
-                  <h6 class="text-info mb-2"><i class="fas fa-chart-bar mr-1"></i>Resumen de Pagos</h6>
-                  <?php
-                  $total_cuotas = count($items);
-                  $cuotas_pagadas = count(array_filter($items, function($item) { return !$item->status; }));
-                  $cuotas_pendientes = $total_cuotas - $cuotas_pagadas;
-                  $porcentaje_pagado = $total_cuotas > 0 ? round(($cuotas_pagadas / $total_cuotas) * 100, 1) : 0;
-                  ?>
-                  <div class="progress mb-2">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="text-primary mb-0"><i class="fas fa-chart-line mr-2"></i>Progreso del Préstamo</h6>
+                    <?php
+                    $total_cuotas = count($items);
+                    $cuotas_pagadas = count(array_filter($items, function($item) { return !$item->status; }));
+                    $cuotas_pendientes = $total_cuotas - $cuotas_pagadas;
+                    $cuotas_vencidas = count(array_filter($items, function($item) use ($today) {
+                      return $item->status && strtotime($item->date) < strtotime($today);
+                    }));
+                    $porcentaje_pagado = $total_cuotas > 0 ? round(($cuotas_pagadas / $total_cuotas) * 100, 1) : 0;
+                    ?>
+                    <span class="badge badge-primary badge-lg"><?php echo $porcentaje_pagado; ?>% Completado</span>
+                  </div>
+                  <div class="progress mb-3" style="height: 20px;">
                     <div class="progress-bar bg-success" role="progressbar" style="width: <?php echo $porcentaje_pagado; ?>%" aria-valuenow="<?php echo $porcentaje_pagado; ?>" aria-valuemin="0" aria-valuemax="100">
-                      <?php echo $porcentaje_pagado; ?>%
+                      <strong><?php echo $cuotas_pagadas; ?>/<?php echo $total_cuotas; ?> cuotas</strong>
                     </div>
                   </div>
-                  <small class="text-muted">
-                    <i class="fas fa-check-circle text-success mr-1"></i><?php echo $cuotas_pagadas; ?> pagadas
-                    <i class="fas fa-clock text-warning ml-3 mr-1"></i><?php echo $cuotas_pendientes; ?> pendientes
-                  </small>
+                  <div class="row text-center">
+                    <div class="col-4">
+                      <div class="p-2 bg-success text-white rounded">
+                        <i class="fas fa-check-circle fa-lg mb-1"></i>
+                        <div class="font-weight-bold"><?php echo $cuotas_pagadas; ?></div>
+                        <small>Pagadas</small>
+                      </div>
+                    </div>
+                    <div class="col-4">
+                      <div class="p-2 bg-warning text-white rounded">
+                        <i class="fas fa-clock fa-lg mb-1"></i>
+                        <div class="font-weight-bold"><?php echo $cuotas_pendientes - $cuotas_vencidas; ?></div>
+                        <small>Pendientes</small>
+                      </div>
+                    </div>
+                    <div class="col-4">
+                      <div class="p-2 bg-danger text-white rounded">
+                        <i class="fas fa-exclamation-triangle fa-lg mb-1"></i>
+                        <div class="font-weight-bold"><?php echo $cuotas_vencidas; ?></div>
+                        <small>Vencidas</small>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
+
+            <!-- Próximo Pago y Alertas -->
             <div class="col-md-6">
-              <div class="card border-warning">
+              <div class="card border-info shadow-sm">
                 <div class="card-body p-3">
-                  <h6 class="text-warning mb-2"><i class="fas fa-exclamation-triangle mr-1"></i>Próximo Pago</h6>
+                  <h6 class="text-info mb-3"><i class="fas fa-calendar-check mr-2"></i>Próximo Pago</h6>
                   <?php
                   $proxima_cuota = null;
                   foreach ($items as $item) {
@@ -623,21 +718,61 @@
                   if ($proxima_cuota):
                     $dias_restantes = floor((strtotime($proxima_cuota->date) - strtotime($today)) / (60 * 60 * 24));
                   ?>
-                    <p class="mb-1"><strong>Cuota #<?php echo array_search($proxima_cuota, $items) + 1; ?></strong></p>
-                    <p class="mb-1">Fecha: <strong><?php echo date('d/m/Y', strtotime($proxima_cuota->date)); ?></strong></p>
-                    <p class="mb-1">Monto: <strong class="text-primary">$<?php echo number_format($proxima_cuota->fee_amount, 2); ?></strong></p>
-                    <p class="mb-0">
+                    <div class="d-flex align-items-center mb-2">
+                      <div class="flex-grow-1">
+                        <strong class="text-primary">Cuota #<?php echo array_search($proxima_cuota, $items) + 1; ?></strong>
+                        <br><small class="text-muted">Vence: <?php echo date('d/m/Y', strtotime($proxima_cuota->date)); ?></small>
+                      </div>
+                      <div class="text-right">
+                        <div class="font-weight-bold text-primary">$<?php echo number_format($proxima_cuota->fee_amount, 2); ?></div>
+                      </div>
+                    </div>
+                    <div class="text-center">
                       <?php if ($dias_restantes < 0): ?>
-                        <span class="badge badge-danger"><i class="fas fa-exclamation-triangle mr-1"></i>Vencida (<?php echo abs($dias_restantes); ?> días)</span>
+                        <span class="badge badge-danger badge-lg px-3 py-2"><i class="fas fa-exclamation-triangle mr-2"></i>Vencida hace <?php echo abs($dias_restantes); ?> días</span>
                       <?php elseif ($dias_restantes == 0): ?>
-                        <span class="badge badge-warning"><i class="fas fa-calendar-day mr-1"></i>Vence hoy</span>
+                        <span class="badge badge-warning badge-lg px-3 py-2"><i class="fas fa-calendar-day mr-2"></i>¡Vence HOY!</span>
                       <?php else: ?>
-                        <span class="badge badge-info"><i class="fas fa-calendar-alt mr-1"></i><?php echo $dias_restantes; ?> días restantes</span>
+                        <span class="badge badge-info badge-lg px-3 py-2"><i class="fas fa-calendar-alt mr-2"></i><?php echo $dias_restantes; ?> días restantes</span>
                       <?php endif; ?>
-                    </p>
+                    </div>
                   <?php else: ?>
-                    <p class="text-success mb-0"><i class="fas fa-check-circle mr-1"></i>Todas las cuotas han sido pagadas</p>
+                    <div class="text-center py-3">
+                      <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                      <h5 class="text-success font-weight-bold">¡Préstamo Completado!</h5>
+                      <p class="text-muted mb-0">Todas las cuotas han sido pagadas</p>
+                    </div>
                   <?php endif; ?>
+                </div>
+              </div>
+            </div>
+
+            <!-- Resumen Financiero -->
+            <div class="col-md-6">
+              <div class="card border-success shadow-sm">
+                <div class="card-body p-3">
+                  <h6 class="text-success mb-3"><i class="fas fa-dollar-sign mr-2"></i>Estado Financiero</h6>
+                  <div class="row">
+                    <div class="col-6 text-center">
+                      <div class="p-2 bg-light rounded mb-2">
+                        <i class="fas fa-coins fa-2x text-success mb-1"></i>
+                        <div class="font-weight-bold text-success">$<?php echo number_format($cuotas_pagadas * $loan->fee_amount, 2); ?></div>
+                        <small class="text-muted">Pagado</small>
+                      </div>
+                    </div>
+                    <div class="col-6 text-center">
+                      <div class="p-2 bg-light rounded mb-2">
+                        <i class="fas fa-clock fa-2x text-warning mb-1"></i>
+                        <div class="font-weight-bold text-warning">$<?php echo number_format($cuotas_pendientes * $loan->fee_amount, 2); ?></div>
+                        <small class="text-muted">Pendiente</small>
+                      </div>
+                    </div>
+                  </div>
+                  <hr class="my-2">
+                  <div class="text-center">
+                    <small class="text-muted">Total del Préstamo</small>
+                    <div class="font-weight-bold text-primary h5">$<?php echo number_format($loan->credit_amount + ($loan->credit_amount * $loan->interest_amount / 100), 2); ?></div>
+                  </div>
                 </div>
               </div>
             </div>
