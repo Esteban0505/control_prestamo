@@ -658,12 +658,21 @@ $(document).ready(function() {
     // Ejecutar al cargar la página por si ya está seleccionado 'mixta'
     $('#amortization_type').trigger('change');
 
-    // Función para mostrar errores de validación
-    function showValidationError(message) {
-        $('#loanErrorBox').removeClass('d-none').html('<i class="fas fa-exclamation-triangle"></i> ' + message);
-        // Auto-ocultar después de 5 segundos
+    // Función para mostrar errores de validación en el campo específico
+    function showFieldValidationError(fieldSelector, message) {
+        var field = $(fieldSelector);
+        field.addClass('is-invalid');
+
+        // Remover mensaje de error anterior si existe
+        field.next('.invalid-feedback').remove();
+
+        // Agregar mensaje de error
+        field.after('<div class="invalid-feedback">' + message + '</div>');
+
+        // Auto-remover después de 5 segundos
         setTimeout(function() {
-            $('#loanErrorBox').addClass('d-none');
+            field.removeClass('is-invalid');
+            field.next('.invalid-feedback').remove();
         }, 5000);
     }
 
@@ -674,7 +683,7 @@ $(document).ready(function() {
 
         if (amortizationType === 'mixta' && paymentFrequency !== 'quincenal') {
             e.preventDefault();
-            showValidationError('Para amortización mixta, solo se permite frecuencia de pago quincenal.');
+            showFieldValidationError('select[name="payment_m"]', 'Para amortización mixta, solo se permite frecuencia de pago quincenal.');
             return false;
         }
     });
@@ -686,7 +695,7 @@ $(document).ready(function() {
 
         if (amortizationType === 'mixta' && paymentFrequency !== 'quincenal') {
             e.preventDefault();
-            showValidationError('Para amortización mixta, solo se permite frecuencia de pago quincenal.');
+            showFieldValidationError('select[name="payment_m"]', 'Para amortización mixta, solo se permite frecuencia de pago quincenal.');
             return false;
         }
     });
