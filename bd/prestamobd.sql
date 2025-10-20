@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: 127.0.0.1
--- Tiempo de generación: 18-10-2025 a las 16:55:32
+-- Tiempo de generación: 19-10-2025 a las 00:16:40
 -- Versión del servidor: 10.4.14-MariaDB
 -- Versión de PHP: 7.4.11
 
@@ -20,6 +20,19 @@ SET time_zone = "+00:00";
 --
 -- Base de datos: `prestamobd`
 --
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `blacklist`
+--
+
+CREATE TABLE `blacklist` (
+  `id` int(11) NOT NULL,
+  `client_id` int(11) NOT NULL,
+  `reason` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- --------------------------------------------------------
 
@@ -1124,56 +1137,59 @@ CREATE TABLE `customers` (
   `district_id` varchar(150) COLLATE utf8_spanish_ci DEFAULT NULL,
   `address` varchar(160) COLLATE utf8_spanish_ci DEFAULT NULL,
   `mobile` varchar(32) COLLATE utf8_spanish_ci DEFAULT NULL,
+  `phone_fixed` varchar(32) COLLATE utf8_spanish_ci DEFAULT NULL,
   `phone` varchar(20) COLLATE utf8_spanish_ci DEFAULT NULL,
   `user_id` int(11) DEFAULT NULL,
   `ruc` varchar(20) COLLATE utf8_spanish_ci DEFAULT NULL,
   `company` text COLLATE utf8_spanish_ci DEFAULT NULL,
   `loan_status` int(11) NOT NULL DEFAULT 0,
   `tipo_cliente` enum('normal','especial') COLLATE utf8_spanish_ci DEFAULT 'normal',
-  `tope_manual` decimal(15,2) DEFAULT NULL
+  `tope_manual` decimal(15,2) DEFAULT NULL,
+  `secondary_phone` varchar(32) COLLATE utf8_spanish_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_spanish_ci;
 
 --
 -- Volcado de datos para la tabla `customers`
 --
 
-INSERT INTO `customers` (`id`, `dni`, `first_name`, `last_name`, `gender`, `department_id`, `province_id`, `district_id`, `address`, `mobile`, `phone`, `user_id`, `ruc`, `company`, `loan_status`, `tipo_cliente`, `tope_manual`) VALUES
-(8, '12345678', 'pepe', 'pepito', 'masculino', NULL, NULL, NULL, '', '', '', NULL, '', 'Cliente con buen historial de pagos. Prefiere contacto por telÚfono m¾vil. Ha tenido 3 prÚstamos previos, todos pagados a tiempo. Recomendado para aumentos de cupo.', 0, 'normal', NULL),
-(9, '344555', 'sebas', 'marin', 'femenino', 10, '1003', '100311', '', '', '', NULL, '', '', 0, 'normal', NULL),
-(10, '12344', 'dobby', 'marin', 'masculino', 10, '1002', '100202', '', '', '', NULL, '', '', 0, 'normal', NULL),
-(11, '123451', 'cesar', 'ramos', 'masculino', 12, '1203', '120303', '', '', '', NULL, '', '', 0, 'normal', NULL),
-(12, '7654321', 'martin', 'francisco', 'femenino', 11, '1103', '110304', '', '', '', NULL, '', '', 0, 'normal', NULL),
-(13, '1223', 'prueba', 'prueba07', 'masculino', 1, NULL, NULL, '', '', '', 1, NULL, '', 0, 'normal', NULL),
-(14, '777777777', 'Prueba23', 'Prueba23', 'masculino', 1, '0101', '010103', '', '', '', NULL, '', '', 0, 'normal', NULL),
-(15, '189878982', 'Zeus', 'Chavez', 'femenino', 3, '0301', '030104', '', '', '', NULL, '', '', 0, 'normal', NULL),
-(16, '134564356', 'luisa', 'ramirez', 'masculino', 2, '0201', '020102', '', '', '', NULL, '', '', 0, 'normal', NULL),
-(17, '115268456', 'Maariana', 'Vasquez', 'masculino', 4, '0401', '040102', '', '', '', NULL, '', '', 0, 'normal', NULL),
-(18, '136783981', 'Luz', 'Ayda', 'femenino', 1, '0101', '010104', '', '', '', NULL, '', '', 0, 'normal', NULL),
-(19, '123456', 'esteban', 'marin', 'masculino', 2, '', NULL, 'choqwur n455', '23232', '3017614353', 0, NULL, 'premex', 0, 'especial', NULL),
-(20, '123', 'sssssssss', 'ssssssssss', 'masculino', 1, NULL, '010101', 'asasa', 'sasa', 'asa', 1, NULL, '', 0, 'normal', NULL),
-(22, '111111', 'aaaaaa', 'qwqwq', 'masculino', 1, '', '', 'qwqwqwq', '12121', '212', 1, NULL, '', 0, 'especial', NULL),
-(23, '2222', 'qwqwqw', 'qwqwqw', 'masculino', 1, NULL, '010102', 'asasas', '12121', '2122', 3, '', '', 0, 'normal', NULL),
-(24, '33333', 'Esteban', 'Ramos', 'masculino', 1, '', NULL, '', '', '', 1, '', '', 0, 'normal', NULL),
-(25, '98765', 'pepito', 'gsgdgsgdg', 'masculino', 2, '', '', '', '', '', 2, NULL, '', 0, 'especial', NULL),
-(43, '675678', 'ewegwge', 'wdsdsds', 'masculino', 0, '', '', '', '', '', 0, NULL, '', 0, 'especial', NULL),
-(44, '67576899', 'esteban', 'adhaadada', 'masculino', 0, '', '', '', '', '', 2, '', '', 0, 'normal', NULL),
-(46, '132132143321', 'Prueba223', 'Prueba223', 'masculino', 0, '', '', '', '', '', 4, NULL, '', 0, 'normal', NULL),
-(47, '1234434', 'wewewwe', 'wewewewe', '', 0, '', '', '', '', '', 0, '', '', 0, 'normal', NULL),
-(48, '675768909', 'wsdsnd', 'dsdsdsd', 'masculino', 0, '', '', '', '', '', 2, NULL, '', 0, 'especial', NULL),
-(49, '111111113', 'fernando', 'aaaaaaa', 'masculino', 1, '', '', 'asasa', '23232323', 'asasa', 4, NULL, 'asas', 0, 'especial', NULL),
-(50, '1152675687', 'Esteban', 'Sebas', 'masculino', 2, NULL, '020102', '', '', '', 3, NULL, '', 0, 'normal', NULL),
-(51, '34334343434', 'dobby', 'marin', 'masculino', 0, '', '', '', '', '', 1, NULL, '', 0, 'normal', NULL),
-(52, '7687578587', 'pepito', 'peptiro', 'masculino', 0, '', '', '', '', '', 4, NULL, '', 0, 'normal', NULL),
-(53, '98754676', 'sebas sebas', 'sebas', 'masculino', 0, '', '', '', '', '', 3, NULL, '', 0, 'normal', NULL),
-(54, '7364826348', 'dsafdsfdsf', 'dsafsfsdf', 'femenino', 0, '', '', '', '', '', 2, NULL, '', 0, 'normal', NULL),
-(55, '27637228', 'gdsjfsdkjfd', 'kahfkjshfkjsdf', 'masculino', 0, '', '', '', '', '', 3, NULL, '', 1, 'normal', NULL),
-(56, '1152715464', 'Esteban', 'Marin', 'masculino', 0, '', '', '', '', 'prueba@gmail.com', 2, NULL, '', 0, 'normal', NULL),
-(57, '55464646464', 'Esteban', 'Esteban', 'masculino', 0, '', '', '', '2324243432', 'prueba@gmail.com', 1, NULL, '', 0, 'normal', NULL),
-(58, '3242423424', 'q', 'q', '', 0, '', '', '', '', '', 0, NULL, '', 0, 'normal', NULL),
-(59, 'qweqweqweqw', 'we', 'we', '', 0, '', '', '', '', '', 0, NULL, '', 0, 'normal', NULL),
-(60, 'asdasdas', 'dadsasdsa', 'asdas', '', 0, '', '', '', '', '', 0, NULL, '', 0, 'normal', NULL),
-(61, '23423432', 'sdadsa', 'asdsad', 'masculino', 2, '0201', '020101', 'ASasAS', 'sAS', 'ASA@GMAIL.COM', 2, NULL, '', 0, 'normal', NULL),
-(62, '233232322', 'Maximilian', 'qwsqsqsqsqsqq', 'masculino', 1, '0101', '010101', 'asdasdasdad2&%$%', '323232322', 'dadad@gmail.com', 1, NULL, '', 0, 'normal', NULL);
+INSERT INTO `customers` (`id`, `dni`, `first_name`, `last_name`, `gender`, `department_id`, `province_id`, `district_id`, `address`, `mobile`, `phone_fixed`, `phone`, `user_id`, `ruc`, `company`, `loan_status`, `tipo_cliente`, `tope_manual`, `secondary_phone`) VALUES
+(8, '12345678', 'pepe', 'pepito', 'masculino', NULL, NULL, NULL, '', '', NULL, '', NULL, '', 'Cliente con buen historial de pagos. Prefiere contacto por telÚfono m¾vil. Ha tenido 3 prÚstamos previos, todos pagados a tiempo. Recomendado para aumentos de cupo.', 0, 'normal', NULL, NULL),
+(9, '344555', 'sebas', 'marin', 'femenino', 10, '1003', '100311', '', '', NULL, '', NULL, '', '', 0, 'normal', NULL, NULL),
+(10, '12344', 'dobby', 'marin', 'masculino', 10, '1002', '100202', '', '', NULL, '', NULL, '', '', 0, 'normal', NULL, NULL),
+(11, '123451', 'cesar', 'ramos', 'masculino', 12, '1203', '120303', '', '', NULL, '', NULL, '', '', 0, 'normal', NULL, NULL),
+(12, '7654321', 'martin', 'francisco', 'femenino', 11, '1103', '110304', '', '', NULL, '', NULL, '', '', 0, 'normal', NULL, NULL),
+(13, '1223', 'prueba', 'prueba07', 'masculino', 1, NULL, NULL, '', '', NULL, '', 1, NULL, '', 0, 'normal', NULL, NULL),
+(14, '777777777', 'Prueba23', 'Prueba23', 'masculino', 1, '0101', '010103', '', '', NULL, '', NULL, '', '', 0, 'normal', NULL, NULL),
+(15, '189878982', 'Zeus', 'Chavez', 'femenino', 3, '0301', '030104', '', '', NULL, '', NULL, '', '', 0, 'normal', NULL, NULL),
+(16, '134564356', 'luisa', 'ramirez', 'masculino', 2, '0201', '020102', '', '', NULL, '', NULL, '', '', 0, 'normal', NULL, NULL),
+(17, '115268456', 'Maariana', 'Vasquez', 'masculino', 4, '0401', '040102', '', '', NULL, '', NULL, '', '', 0, 'normal', NULL, NULL),
+(18, '136783981', 'Luz', 'Ayda', 'femenino', 1, '0101', '010104', '', '', NULL, '', NULL, '', '', 0, 'normal', NULL, NULL),
+(19, '123456', 'esteban', 'marin', 'masculino', 2, '', NULL, 'choqwur n455', '23232', NULL, '3017614353', 0, NULL, 'premex', 0, 'especial', NULL, NULL),
+(20, '123', 'sssssssss', 'ssssssssss', 'masculino', 1, NULL, '010101', 'asasa', 'sasa', NULL, 'asa', 1, NULL, '', 0, 'normal', NULL, NULL),
+(22, '111111', 'aaaaaa', 'qwqwq', 'masculino', 1, '', '', 'qwqwqwq', '12121', NULL, '212', 1, NULL, '', 0, 'especial', NULL, NULL),
+(23, '2222', 'qwqwqw', 'qwqwqw', 'masculino', 1, NULL, '010102', 'asasas', '12121', NULL, '2122', 3, '', '', 0, 'normal', NULL, NULL),
+(24, '33333', 'Esteban', 'Ramos', 'masculino', 1, '', NULL, '', '', NULL, '', 1, '', '', 0, 'normal', NULL, NULL),
+(25, '98765', 'pepito', 'gsgdgsgdg', 'masculino', 2, '', '', '', '', NULL, '', 2, NULL, '', 0, 'especial', NULL, NULL),
+(43, '675678', 'ewegwge', 'wdsdsds', 'masculino', 0, '', '', '', '', NULL, '', 0, NULL, '', 0, 'especial', NULL, NULL),
+(44, '67576899', 'esteban', 'adhaadada', 'masculino', 0, '', '', '', '', NULL, '', 2, '', '', 0, 'normal', NULL, NULL),
+(46, '132132143321', 'Prueba223', 'Prueba223', 'masculino', 0, '', '', '', '', NULL, '', 4, NULL, '', 0, 'normal', NULL, NULL),
+(47, '1234434', 'wewewwe', 'wewewewe', '', 0, '', '', '', '', NULL, '', 0, '', '', 0, 'normal', NULL, NULL),
+(48, '675768909', 'wsdsnd', 'dsdsdsd', 'masculino', 0, '', '', '', '', NULL, '', 2, NULL, '', 0, 'especial', NULL, NULL),
+(49, '111111113', 'fernando', 'aaaaaaa', 'masculino', 1, '', '', 'asasa', '23232323', NULL, 'asasa', 4, NULL, 'asas', 0, 'especial', NULL, NULL),
+(50, '1152675687', 'Esteban', 'Sebas', 'masculino', 2, NULL, '020102', '', '', NULL, '', 3, NULL, '', 0, 'normal', NULL, NULL),
+(51, '34334343434', 'dobby', 'marin', 'masculino', 0, '', '', '', '', NULL, '', 1, NULL, '', 0, 'normal', NULL, NULL),
+(52, '7687578587', 'pepito', 'peptiro', 'masculino', 0, '', '', '', '', NULL, '', 4, NULL, '', 0, 'normal', NULL, NULL),
+(53, '98754676', 'sebas sebas', 'sebas', 'masculino', 0, '', '', '', '', NULL, '', 3, NULL, '', 0, 'normal', NULL, NULL),
+(54, '7364826348', 'dsafdsfdsf', 'dsafsfsdf', 'femenino', 0, '', '', '', '', NULL, '', 2, NULL, '', 0, 'normal', NULL, NULL),
+(55, '27637228', 'gdsjfsdkjfd', 'kahfkjshfkjsdf', 'masculino', 0, '', '', '', '', NULL, '', 3, NULL, '', 1, 'normal', NULL, NULL),
+(56, '1152715464', 'Esteban', 'Marin', 'masculino', 0, '', '', '', '', NULL, 'prueba@gmail.com', 2, NULL, '', 0, 'normal', NULL, NULL),
+(57, '55464646464', 'Esteban', 'Esteban', 'masculino', 0, '', '', '', '2324243432', NULL, 'prueba@gmail.com', 1, NULL, '', 0, 'normal', NULL, NULL),
+(58, '3242423424', 'q', 'q', '', 0, '', '', '', '', NULL, '', 0, NULL, '', 0, 'normal', NULL, NULL),
+(59, 'qweqweqweqw', 'we', 'we', '', 0, '', '', '', '', NULL, '', 0, NULL, '', 0, 'normal', NULL, NULL),
+(60, 'asdasdas', 'dadsasdsa', 'asdas', '', 0, '', '', '', '', NULL, '', 0, NULL, '', 0, 'normal', NULL, NULL),
+(61, '23423432', 'sdadsa', 'asdsad', 'masculino', 2, '0201', '020101', 'ASasAS', 'sAS', NULL, 'ASA@GMAIL.COM', 2, NULL, '', 0, 'normal', NULL, NULL),
+(62, '233232322', 'Maximilian', 'qwsqsqsqsqsqq', 'masculino', 1, '0101', '010101', 'asdasdasdad2&%$%', '323232322', NULL, 'dadad@gmail.com', 1, NULL, '', 0, 'normal', NULL, NULL),
+(63, '23232332', 'wreewr', 'werewrew', 'masculino', 3, '0301', '030101', 'werewrewrw', '555555555', '55555555', 'esteban@gmail.com', 1, NULL, 'asdarfwadfasd sadsadsa', 0, 'normal', NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -1207,8 +1223,8 @@ CREATE TABLE `loans` (
 INSERT INTO `loans` (`id`, `num_prestamo`, `customer_id`, `credit_amount`, `balance`, `interest_amount`, `num_fee`, `fee_amount`, `payment_m`, `amortization_type`, `coin_id`, `date`, `status`, `created_by`, `assigned_user_id`, `tipo_cliente`) VALUES
 (10, 10, 11, '3000.00', '0.00', '3.00', 4, '772.50', 'mensual', 'francesa', 1, '2025-07-04', b'0', NULL, NULL, 'normal'),
 (11, 11, 10, '3000.00', '0.00', '4.00', 3, '1040.00', 'mensual', 'francesa', 1, '2025-07-18', b'0', NULL, NULL, 'normal'),
-(12, 12, 9, '2000.00', '0.00', '2.00', 3, '680.00', 'mensual', 'francesa', 1, '2025-07-18', b'0', NULL, NULL, 'normal'),
-(13, 13, 12, '1000.00', '0.00', '2.00', 4, '255.00', 'mensual', 'francesa', 2, '2025-07-18', b'0', NULL, NULL, 'normal'),
+(12, 12, 9, '2000.00', '0.00', '2.00', 3, '680.00', 'mensual', 'francesa', 1, '2025-07-18', b'1', NULL, NULL, 'normal'),
+(13, 13, 12, '1000.00', '0.00', '2.00', 4, '255.00', 'mensual', 'francesa', 2, '2025-07-18', b'1', NULL, NULL, 'normal'),
 (14, 14, 13, '4000.00', '0.00', '3.00', 4, '1030.00', 'mensual', 'francesa', 1, '2025-07-18', b'0', NULL, NULL, 'normal'),
 (15, 15, 14, '10000.00', '0.00', '3.00', 2, '5150.00', 'mensual', 'francesa', 2, '2025-08-28', b'0', NULL, NULL, 'normal'),
 (16, 16, 15, '1000000000.00', '0.00', '10.00', 3, '99999999.99', 'quincenal', 'francesa', 1, '2025-08-28', b'0', NULL, NULL, 'normal'),
@@ -1292,6 +1308,28 @@ INSERT INTO `loans` (`id`, `num_prestamo`, `customer_id`, `credit_amount`, `bala
 (94, 94, 49, '500000.00', '0.00', '12.00', 12, '60000.00', 'mensual', 'estaunidense', 1, '2025-10-14', b'0', 1, NULL, NULL),
 (95, 95, 13, '500000.00', '0.00', '12.00', 12, '60000.00', 'mensual', 'estaunidense', 1, '2025-10-15', b'0', 1, NULL, NULL),
 (96, 96, 13, '50000.00', '0.00', '12.00', 12, '500.00', 'mensual', 'estaunidense', 1, '2025-10-15', b'0', 1, NULL, NULL);
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `loans_penalties`
+--
+
+CREATE TABLE `loans_penalties` (
+  `id` int(11) NOT NULL,
+  `loan_id` int(11) NOT NULL COMMENT 'ID del pr├®stamo penalizado',
+  `customer_id` int(11) NOT NULL COMMENT 'ID del cliente penalizado',
+  `penalty_reason` text COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Raz├│n de la penalizaci├│n',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp() COMMENT 'Fecha de creaci├│n de la penalizaci├│n'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Tabla para registrar penalizaciones aplicadas a pr├®stamos por mora';
+
+--
+-- Volcado de datos para la tabla `loans_penalties`
+--
+
+INSERT INTO `loans_penalties` (`id`, `loan_id`, `customer_id`, `penalty_reason`, `created_at`) VALUES
+(1, 12, 9, 'Más de 60 días de mora', '2025-10-18 16:29:29'),
+(2, 13, 12, 'Más de 60 días de mora', '2025-10-18 16:29:29');
 
 -- --------------------------------------------------------
 
@@ -2609,7 +2647,7 @@ INSERT INTO `loan_items` (`id`, `loan_id`, `date`, `num_quota`, `fee_amount`, `c
 (2419, 89, '2025-12-14', 2, '7338.17', '2571.98', '0.00', '4766.18', '0.00', '0.00', '0.00', NULL, '2025-10-14 17:51:51', b'0', 2),
 (2420, 89, '2026-01-14', 3, '7338.17', '2829.18', '2829.18', '4508.99', '4508.99', '0.00', '0.00', NULL, '2025-10-18 05:12:32', b'0', 2),
 (2421, 89, '2026-02-14', 4, '7338.17', '3112.10', '3112.10', '4226.07', '4226.07', '0.00', '0.00', NULL, '2025-10-18 05:13:34', b'0', 2),
-(2422, 89, '2026-03-14', 5, '7338.17', '3423.31', '0.00', '3914.86', '0.00', '35725.26', '0.00', NULL, '2025-10-18 05:16:38', b'0', 2),
+(2422, 89, '2026-03-14', 5, '7338.17', '3423.31', '0.00', '3914.86', '0.00', '0.00', '0.00', NULL, '2025-10-18 16:36:10', b'0', 2),
 (2423, 89, '2026-04-14', 6, '7338.17', '3765.64', '3765.64', '3572.53', '3572.53', '0.00', '0.00', NULL, '2025-10-18 05:45:25', b'0', 2),
 (2424, 89, '2026-05-14', 7, '7338.17', '4142.20', '4142.20', '3195.96', '3195.96', '0.00', '0.00', NULL, '2025-10-18 05:46:01', b'0', 2),
 (2425, 89, '2026-06-14', 8, '7338.17', '4556.42', '4556.42', '2781.74', '2781.74', '0.00', '0.00', NULL, '2025-10-18 05:47:43', b'0', 2),
@@ -2878,7 +2916,7 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `first_name`, `last_name`, `email`, `password`, `perfil`, `role`, `estado`, `ultimo_login`, `fecha`) VALUES
-(1, 'Esteban', 'Marin', 'admin@gmail.com', '$2y$10$ZIGlfNVODq5qwAmF86lH9eT/o.mJfA5rWd9GubFyfwItu3c4.XoHm', 'admin', 'admin', 1, '2025-10-17 23:25:52', '2025-10-17 21:25:52'),
+(1, 'Esteban', 'Marin', 'admin@gmail.com', '$2y$10$ZIGlfNVODq5qwAmF86lH9eT/o.mJfA5rWd9GubFyfwItu3c4.XoHm', 'admin', 'admin', 1, '2025-10-18 16:58:33', '2025-10-18 14:58:33'),
 (2, 'Dobby', 'Marin', 'dobby@admin.com', '$2y$10$LcfIlPiFa6hZhaGUt/41E.cYU8oRq.MF7iEXjxZ8gtJ2qL/UBG8Li', 'operador', 'operador', 1, '2025-10-15 20:26:24', '2025-10-15 18:26:24'),
 (3, 'Sebas', 'Marin', 'sebas@gmail.com', '$2y$10$mvteXUT4iBnVeXQW/OhQqeGjKe73ou7CMyOnrXWszIFPAnveJ/kSi', 'operador', 'operador', 1, '2025-10-03 00:51:52', '2025-10-15 23:37:41'),
 (4, 'Pepito', 'Marin', 'pepe@gmail.com', '$2y$10$T36CfrJktcFUr6YkvXEA/uxBRZ9j21qH.L7X8BTJBudJRsuET5SIm', 'operador', 'operador', 1, '2025-10-09 02:01:18', '2025-10-09 00:04:23');
@@ -2952,6 +2990,13 @@ INSERT INTO `user_permissions` (`id`, `user_id`, `permission_name`, `value`) VAL
 --
 
 --
+-- Indices de la tabla `blacklist`
+--
+ALTER TABLE `blacklist`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_client_id` (`client_id`);
+
+--
 -- Indices de la tabla `collector_commissions`
 --
 ALTER TABLE `collector_commissions`
@@ -2979,6 +3024,15 @@ ALTER TABLE `customers`
 ALTER TABLE `loans`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `unique_num_prestamo` (`num_prestamo`);
+
+--
+-- Indices de la tabla `loans_penalties`
+--
+ALTER TABLE `loans_penalties`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `loan_id` (`loan_id`),
+  ADD KEY `customer_id` (`customer_id`),
+  ADD KEY `created_at` (`created_at`);
 
 --
 -- Indices de la tabla `loan_items`
@@ -3019,6 +3073,12 @@ ALTER TABLE `user_permissions`
 --
 
 --
+-- AUTO_INCREMENT de la tabla `blacklist`
+--
+ALTER TABLE `blacklist`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT de la tabla `collector_commissions`
 --
 ALTER TABLE `collector_commissions`
@@ -3034,13 +3094,19 @@ ALTER TABLE `collector_reports`
 -- AUTO_INCREMENT de la tabla `customers`
 --
 ALTER TABLE `customers`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=63;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=64;
 
 --
 -- AUTO_INCREMENT de la tabla `loans`
 --
 ALTER TABLE `loans`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=97;
+
+--
+-- AUTO_INCREMENT de la tabla `loans_penalties`
+--
+ALTER TABLE `loans_penalties`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT de la tabla `loan_items`
@@ -3065,6 +3131,17 @@ ALTER TABLE `report_logs`
 --
 ALTER TABLE `users`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+
+--
+-- Restricciones para tablas volcadas
+--
+
+--
+-- Filtros para la tabla `loans_penalties`
+--
+ALTER TABLE `loans_penalties`
+  ADD CONSTRAINT `fk_loans_penalties_customers` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_loans_penalties_loans` FOREIGN KEY (`loan_id`) REFERENCES `loans` (`id`) ON DELETE CASCADE;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

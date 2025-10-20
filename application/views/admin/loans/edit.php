@@ -645,7 +645,7 @@ $(document).ready(function() {
             paymentSelect.prop('disabled', true);
             // Mostrar mensaje informativo
             if (!$('#mixed_payment_warning').length) {
-                paymentSelect.after('<small id="mixed_payment_warning" class="form-text text-info">Para amortización mixta, solo se permite frecuencia quincenal.</small>');
+                paymentSelect.after('<small id="mixed_payment_warning" class="form-text text-info"><i class="fas fa-info-circle"></i> Para amortización mixta, la forma de pago se establece automáticamente en quincenal.</small>');
             }
         } else {
             // Habilitar el campo si no es mixta
@@ -658,6 +658,15 @@ $(document).ready(function() {
     // Ejecutar al cargar la página por si ya está seleccionado 'mixta'
     $('#amortization_type').trigger('change');
 
+    // Función para mostrar errores de validación
+    function showValidationError(message) {
+        $('#loanErrorBox').removeClass('d-none').html('<i class="fas fa-exclamation-triangle"></i> ' + message);
+        // Auto-ocultar después de 5 segundos
+        setTimeout(function() {
+            $('#loanErrorBox').addClass('d-none');
+        }, 5000);
+    }
+
     // Validación adicional en el botón "Calcular"
     $('#calcular').on('click', function(e) {
         var amortizationType = $('#amortization_type').val();
@@ -665,7 +674,7 @@ $(document).ready(function() {
 
         if (amortizationType === 'mixta' && paymentFrequency !== 'quincenal') {
             e.preventDefault();
-            alert('Error: Para amortización mixta, solo se permite frecuencia de pago quincenal.');
+            showValidationError('Para amortización mixta, solo se permite frecuencia de pago quincenal.');
             return false;
         }
     });
@@ -677,7 +686,7 @@ $(document).ready(function() {
 
         if (amortizationType === 'mixta' && paymentFrequency !== 'quincenal') {
             e.preventDefault();
-            alert('Error: Para amortización mixta, solo se permite frecuencia de pago quincenal.');
+            showValidationError('Para amortización mixta, solo se permite frecuencia de pago quincenal.');
             return false;
         }
     });
