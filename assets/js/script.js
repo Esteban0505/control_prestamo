@@ -932,7 +932,23 @@ $(document).ready(function() {
         } else {
           console.error('Error en cálculo:', response.error);
           const errorMsg = response.error || 'Error desconocido en el cálculo';
-          showErrorMessage('Error en el cálculo: ' + errorMsg);
+
+          // Si el error es específico de amortización mixta, mostrarlo en el campo
+          if (errorMsg.includes('Para amortización mixta, solo se permite frecuencia de pago quincenal')) {
+            // Mostrar error en el campo de forma de pago
+            var paymentSelect = $('select[name="payment_m"]');
+            paymentSelect.addClass('is-invalid');
+            if (!paymentSelect.next('.invalid-feedback').length) {
+              paymentSelect.after('<div class="invalid-feedback">' + errorMsg + '</div>');
+            }
+            // Auto-remover después de 5 segundos
+            setTimeout(function() {
+              paymentSelect.removeClass('is-invalid');
+              paymentSelect.next('.invalid-feedback').remove();
+            }, 5000);
+          } else {
+            showErrorMessage('Error en el cálculo: ' + errorMsg);
+          }
         }
 
         console.log('Callback success completado');
