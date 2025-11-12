@@ -1,82 +1,143 @@
-[2025-10-02 06:09:58] === INICIANDO DIAGNÓSTICO DE PERMISOS ===
+[2025-11-01 20:57:43] === INICIANDO DIAGNÓSTICO DE PERMISOS ===
 
-[2025-10-02 06:09:58] 
+[2025-11-01 20:57:43] 
 --- PASO 1: Verificar estructura de BD ---
-[2025-10-02 06:09:58] ✓ Tabla 'users' existe
-[2025-10-02 06:09:58] ✓ Tabla 'user_permissions' existe
-[2025-10-02 06:09:59] ✓ Estructura de user_permissions correcta
-[2025-10-02 06:09:59] 
+[2025-11-01 20:57:43] ✓ Tabla 'users' existe
+[2025-11-01 20:57:43] ✓ Tabla 'user_permissions' existe
+[2025-11-01 20:57:43] ✓ Estructura de user_permissions correcta
+[2025-11-01 20:57:43] 
 --- PASO 2: Crear usuario de prueba ---
-[2025-10-02 06:09:59] ✓ Usuario de prueba creado con ID: 0
-[2025-10-02 06:09:59] 
+[2025-11-01 20:57:44] ✓ Usuario de prueba creado con ID: 17
+[2025-11-01 20:57:44] 
 --- PASO 3: Simular envío desde frontend ---
-[2025-10-02 06:09:59] Datos simulados del frontend:
-[2025-10-02 06:09:59]   dashboard: 1
-[2025-10-02 06:09:59]   customers: 0
-[2025-10-02 06:09:59]   loans: 1
-[2025-10-02 06:09:59]   payments: 1
-[2025-10-02 06:09:59]   reports: 1
-[2025-10-02 06:09:59]   config: 0
-[2025-10-02 06:09:59] Llamando a save_permissions...
-[2025-10-02 06:09:59] [SIMULATE] save_permissions called for user_id: 0 with 6 permissions
-[2025-10-02 06:09:59] [SIMULATE] save_permissions: deleted existing permissions
-[2025-10-02 06:09:59] [SIMULATE] save_permissions: inserted permission dashboard = 1
-[2025-10-02 06:09:59] [SIMULATE] save_permissions: inserted permission customers = 0
-[2025-10-02 06:09:59] [SIMULATE] save_permissions: inserted permission loans = 1
-[2025-10-02 06:09:59] [SIMULATE] save_permissions: inserted permission payments = 1
-[2025-10-02 06:09:59] [SIMULATE] save_permissions: inserted permission reports = 1
-[2025-10-02 06:09:59] [SIMULATE] save_permissions: inserted permission config = 0
-[2025-10-02 06:09:59] [SIMULATE] save_permissions: completed successfully
-[2025-10-02 06:09:59] ✓ save_permissions ejecutado exitosamente
-[2025-10-02 06:09:59] 
+[2025-11-01 20:57:44] Datos simulados del frontend:
+[2025-11-01 20:57:44]   dashboard: 1
+[2025-11-01 20:57:44]   customers: 0
+[2025-11-01 20:57:44]   loans: 1
+[2025-11-01 20:57:44]   payments: 1
+[2025-11-01 20:57:44]   reports: 1
+[2025-11-01 20:57:44]   config: 0
+[2025-11-01 20:57:44] Llamando a save_permissions...
+[2025-11-01 20:57:44] [SIMULATE] save_permissions called for user_id: 17 with 6 permissions
+[2025-11-01 20:57:44] [SIMULATE] save_permissions: deleted existing permissions
+[2025-11-01 20:57:44] [SIMULATE] save_permissions: inserted permission dashboard = 1
+[2025-11-01 20:57:44] [SIMULATE] save_permissions: inserted permission customers = 0
+[2025-11-01 20:57:44] [SIMULATE] save_permissions: inserted permission loans = 1
+[2025-11-01 20:57:44] [SIMULATE] save_permissions: inserted permission payments = 1
+[2025-11-01 20:57:44] [SIMULATE] save_permissions: inserted permission reports = 1
+[2025-11-01 20:57:44] [SIMULATE] save_permissions: inserted permission config = 0
+[2025-11-01 20:57:44] [SIMULATE] save_permissions: completed successfully
+[2025-11-01 20:57:44] ✓ save_permissions ejecutado exitosamente
+[2025-11-01 20:57:44] 
 --- PASO 4: Verificar guardado en BD ---
-[2025-10-02 06:09:59] Permisos guardados en BD:
-[2025-10-02 06:09:59]   config: 0
-[2025-10-02 06:09:59]   customers: 0
-[2025-10-02 06:09:59]   dashboard: 1
-[2025-10-02 06:09:59]   loans: 1
-[2025-10-02 06:09:59]   payments: 1
-[2025-10-02 06:09:59]   reports: 1
-[2025-10-02 06:09:59] ✓ Todos los permisos guardados correctamente
-[2025-10-02 06:09:59] 
+[2025-11-01 20:57:44] Permisos guardados en BD:
+[2025-11-01 20:57:44]   config: 0
+[2025-11-01 20:57:44]   customers: 0
+[2025-11-01 20:57:44]   dashboard: 1
+[2025-11-01 20:57:44]   loans: 1
+[2025-11-01 20:57:44]   payments: 1
+[2025-11-01 20:57:44]   reports: 1
+[2025-11-01 20:57:44] ✓ Todos los permisos guardados correctamente
+[2025-11-01 20:57:44] 
 --- PASO 5: Verificar get_permissions ---
-[2025-10-02 06:09:59] [SIMULATE] get_permissions called for user_id: 0
-[2025-10-02 06:09:59] [SIMULATE] get_permissions: found 6 permissions in DB
-[2025-10-02 06:09:59] [SIMULATE] get_permissions: returning 6 permissions
-[2025-10-02 06:09:59] Permisos obtenidos por get_permissions:
-[2025-10-02 06:09:59]   config: 0
-[2025-10-02 06:09:59]   customers: 0
-[2025-10-02 06:09:59]   dashboard: 1
-[2025-10-02 06:09:59]   loans: 1
-[2025-10-02 06:09:59]   payments: 1
-[2025-10-02 06:09:59]   reports: 1
-[2025-10-02 06:09:59] ✓ get_permissions funciona correctamente
-[2025-10-02 06:09:59] 
+[2025-11-01 20:57:44] [SIMULATE] get_permissions called for user_id: 17
+[2025-11-01 20:57:44] [SIMULATE] get_permissions: found 6 permissions in DB
+[2025-11-01 20:57:44] [SIMULATE] get_permissions: returning 6 permissions
+[2025-11-01 20:57:44] Permisos obtenidos por get_permissions:
+[2025-11-01 20:57:44]   config: 0
+[2025-11-01 20:57:44]   customers: 0
+[2025-11-01 20:57:44]   dashboard: 1
+[2025-11-01 20:57:44]   loans: 1
+[2025-11-01 20:57:44]   payments: 1
+[2025-11-01 20:57:44]   reports: 1
+[2025-11-01 20:57:44] ✓ get_permissions funciona correctamente
+[2025-11-01 20:57:44] 
 --- PASO 6: Verificar can_view ---
-[2025-10-02 06:09:59] Usuario: ID 0, Rol: operador
-[2025-10-02 06:09:59] Resultados de can_view:
-[2025-10-02 06:09:59] [SIMULATE] can_view called: role='operador', section='dashboard'
-[2025-10-02 06:09:59] [SIMULATE] can_view: returning true
-[2025-10-02 06:09:59]   can_view('operador', 'dashboard'): true
-[2025-10-02 06:09:59] [SIMULATE] can_view called: role='operador', section='customers'
-[2025-10-02 06:09:59] [SIMULATE] can_view: returning true
-[2025-10-02 06:09:59]   can_view('operador', 'customers'): true
-[2025-10-02 06:09:59] [SIMULATE] can_view called: role='operador', section='loans'
-[2025-10-02 06:09:59] [SIMULATE] can_view: returning true
-[2025-10-02 06:09:59]   can_view('operador', 'loans'): true
-[2025-10-02 06:09:59] [SIMULATE] can_view called: role='operador', section='payments'
-[2025-10-02 06:09:59] [SIMULATE] can_view: returning true
-[2025-10-02 06:09:59]   can_view('operador', 'payments'): true
-[2025-10-02 06:09:59] [SIMULATE] can_view called: role='operador', section='reports'
-[2025-10-02 06:09:59] [SIMULATE] can_view: returning true
-[2025-10-02 06:09:59]   can_view('operador', 'reports'): true
-[2025-10-02 06:09:59] [SIMULATE] can_view called: role='operador', section='config'
-[2025-10-02 06:09:59] [SIMULATE] can_view: returning false
-[2025-10-02 06:09:59]   can_view('operador', 'config'): false
-[2025-10-02 06:09:59] [SIMULATE] can_view called: role='operador', section='customers'
-[2025-10-02 06:09:59] [SIMULATE] can_view: returning true
-[2025-10-02 06:09:59] ✗ ERROR: can_view debería retornar false para 'customers' (permiso=0)
-[2025-10-02 06:09:59] ERROR FATAL: can_view no respeta permisos granulares
-[2025-10-02 06:09:59] Stack trace: #0 C:\xampp\htdocs\prestamo-1\diagnostic_permissions.php(232): DiagnosticPermissions->step_verify_can_view(0)
-#1 C:\xampp\htdocs\prestamo-1\diagnostic_permissions.php(520): DiagnosticPermissions->run_diagnostic()
-#2 {main}
+[2025-11-01 20:57:44] Usuario: ID 17, Rol: operador
+[2025-11-01 20:57:44] Resultados de can_view:
+[2025-11-01 20:57:44] [SIMULATE] can_view called: role='operador', section='dashboard'
+[2025-11-01 20:57:44] [SIMULATE] can_view: simulating corrected logic - checking DB permissions
+[2025-11-01 20:57:44] [SIMULATE] can_view: found permission in DB for 'dashboard', returning true
+[2025-11-01 20:57:44]   can_view('operador', 'dashboard'): true
+[2025-11-01 20:57:44] [SIMULATE] can_view called: role='operador', section='customers'
+[2025-11-01 20:57:44] [SIMULATE] can_view: simulating corrected logic - checking DB permissions
+[2025-11-01 20:57:44] [SIMULATE] can_view: found permission in DB for 'customers', returning false
+[2025-11-01 20:57:44]   can_view('operador', 'customers'): false
+[2025-11-01 20:57:44] [SIMULATE] can_view called: role='operador', section='loans'
+[2025-11-01 20:57:44] [SIMULATE] can_view: simulating corrected logic - checking DB permissions
+[2025-11-01 20:57:44] [SIMULATE] can_view: found permission in DB for 'loans', returning true
+[2025-11-01 20:57:44]   can_view('operador', 'loans'): true
+[2025-11-01 20:57:44] [SIMULATE] can_view called: role='operador', section='payments'
+[2025-11-01 20:57:44] [SIMULATE] can_view: simulating corrected logic - checking DB permissions
+[2025-11-01 20:57:44] [SIMULATE] can_view: found permission in DB for 'payments', returning true
+[2025-11-01 20:57:44]   can_view('operador', 'payments'): true
+[2025-11-01 20:57:44] [SIMULATE] can_view called: role='operador', section='reports'
+[2025-11-01 20:57:44] [SIMULATE] can_view: simulating corrected logic - checking DB permissions
+[2025-11-01 20:57:44] [SIMULATE] can_view: found permission in DB for 'reports', returning true
+[2025-11-01 20:57:44]   can_view('operador', 'reports'): true
+[2025-11-01 20:57:44] [SIMULATE] can_view called: role='operador', section='config'
+[2025-11-01 20:57:44] [SIMULATE] can_view: simulating corrected logic - checking DB permissions
+[2025-11-01 20:57:44] [SIMULATE] can_view: found permission in DB for 'config', returning false
+[2025-11-01 20:57:44]   can_view('operador', 'config'): false
+[2025-11-01 20:57:44] [SIMULATE] can_view called: role='operador', section='customers'
+[2025-11-01 20:57:44] [SIMULATE] can_view: simulating corrected logic - checking DB permissions
+[2025-11-01 20:57:44] [SIMULATE] can_view: found permission in DB for 'customers', returning false
+[2025-11-01 20:57:44] [SIMULATE] can_view called: role='operador', section='dashboard'
+[2025-11-01 20:57:44] [SIMULATE] can_view: simulating corrected logic - checking DB permissions
+[2025-11-01 20:57:44] [SIMULATE] can_view: found permission in DB for 'dashboard', returning true
+[2025-11-01 20:57:44] ✓ can_view funciona correctamente con permisos granulares
+[2025-11-01 20:57:44] 
+--- PASO 7: Simular reflexión en frontend ---
+[2025-11-01 20:57:44] [SIMULATE] get_permissions called for user_id: 17
+[2025-11-01 20:57:44] [SIMULATE] get_permissions: found 6 permissions in DB
+[2025-11-01 20:57:44] [SIMULATE] get_permissions: returning 6 permissions
+[2025-11-01 20:57:44] Respuesta JSON simulada al frontend:
+[2025-11-01 20:57:44] {
+    "success": true,
+    "user": {
+        "id": "17",
+        "first_name": "Test",
+        "role": "operador"
+    },
+    "permissions": [
+        {
+            "permission_name": "config",
+            "value": 0
+        },
+        {
+            "permission_name": "customers",
+            "value": 0
+        },
+        {
+            "permission_name": "dashboard",
+            "value": 1
+        },
+        {
+            "permission_name": "loans",
+            "value": 1
+        },
+        {
+            "permission_name": "payments",
+            "value": 1
+        },
+        {
+            "permission_name": "reports",
+            "value": 1
+        }
+    ]
+}
+[2025-11-01 20:57:44] Procesamiento simulado en frontend:
+[2025-11-01 20:57:44]   Checkbox 'config': unchecked
+[2025-11-01 20:57:44]   Checkbox 'customers': unchecked
+[2025-11-01 20:57:44]   Checkbox 'dashboard': checked
+[2025-11-01 20:57:44]   Checkbox 'loans': checked
+[2025-11-01 20:57:44]   Checkbox 'payments': checked
+[2025-11-01 20:57:44]   Checkbox 'reports': checked
+[2025-11-01 20:57:44] ✓ Reflexión en frontend simulada correctamente
+[2025-11-01 20:57:44] 
+--- PASO 8: Limpiar datos de prueba ---
+[2025-11-01 20:57:44] ✓ Permisos de usuario de prueba eliminados
+[2025-11-01 20:57:44] ✓ Usuario de prueba eliminado
+[2025-11-01 20:57:44] ✓ Limpieza completada
+[2025-11-01 20:57:44] 
+=== DIAGNÓSTICO COMPLETADO EXITOSAMENTE ===

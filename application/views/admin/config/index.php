@@ -139,31 +139,32 @@
                                         
                                         <?php if($this->session->userdata('perfil') == 'admin' || $this->session->userdata('role') == 'admin'): ?>
                                         <!-- Botón Permisos -->
-                                        <button type="button" 
-                                                class="btn btn-info btn-sm btn-permissions" 
+                                        <button type="button"
+                                                class="btn btn-info btn-sm btn-permissions"
                                                 data-id="<?= $user->id ?>"
                                                 data-name="<?= $user->first_name . ' ' . $user->last_name ?>"
                                                 data-role="<?= isset($user->role) ? $user->role : $user->perfil ?>"
                                                 title="Gestionar Permisos">
                                             <i class="fas fa-key"></i>
                                         </button>
-                                        
+
                                         <!-- ✅ BOTÓN DE ESTADO MEJORADO -->
-                                        <button type="button" 
-                                                class="btn btn-<?= $user->estado == 1 ? 'warning' : 'success' ?> btn-sm btn-toggle-state" 
+                                        <button type="button"
+                                                class="btn btn-<?= $user->estado == 1 ? 'warning' : 'success' ?> btn-sm btn-toggle-state d-flex align-items-center justify-content-center"
                                                 data-id="<?= $user->id ?>"
                                                 data-current-state="<?= $user->estado ?>"
-                                                title="<?= $user->estado == 1 ? 'Desactivar Usuario' : 'Activar Usuario' ?>">
+                                                title="<?= $user->estado == 1 ? 'Desactivar Usuario' : 'Activar Usuario' ?>"
+                                                style="width: 32px; height: 32px; padding: 0;">
                                             <?php if($user->estado == 1): ?>
-                                                <i class="fas fa-toggle-on text-danger"></i> Desactivar
+                                                <i class="fas fa-user-check fa-sm text-white"></i>
                                             <?php else: ?>
-                                                <i class="fas fa-toggle-off text-success"></i> Activar
+                                                <i class="fas fa-user-times fa-sm text-white"></i>
                                             <?php endif; ?>
                                         </button>
-                                        
+
                                         <!-- Botón Eliminar -->
-                                        <button type="button" 
-                                                class="btn btn-danger btn-sm btn-delete-user" 
+                                        <button type="button"
+                                                class="btn btn-danger btn-sm btn-delete-user"
                                                 data-id="<?= $user->id ?>"
                                                 data-name="<?= $user->first_name . ' ' . $user->last_name ?>"
                                                 title="Eliminar">
@@ -238,8 +239,8 @@
                                 <label for="user-role-select">Cambiar Rol:</label>
                                 <select class="form-control" name="role" id="user-role-select">
                                     <option value="admin">Administrador</option>
-                                    <option value="operador">Operador</option>
-                                    <option value="viewer">Visualizador</option>
+                                    <option value="Colaborador">Colaborador</option>
+                                    <option value="Visitante">Visitante</option>
                                 </select>
                             </div>
                         </div>
@@ -268,12 +269,29 @@
                                      <i class="fas fa-arrow-left text-warning"></i> Sidebar Back
                                  </label>
                              </div>
+
+                             <!-- Clientes y Submenús -->
                              <div class="form-check">
                                  <input class="form-check-input" type="checkbox" name="permisos[]" value="customers" id="permission-customers">
                                  <label class="form-check-label" for="permission-customers">
-                                     <i class="fas fa-users text-info"></i> Clientes
+                                     <i class="fas fa-users text-info"></i> <strong>Clientes</strong>
                                  </label>
                              </div>
+                             <div class="ml-3">
+                                 <div class="form-check">
+                                     <input class="form-check-input" type="checkbox" name="permisos[]" value="customers_list" id="permission-customers-list">
+                                     <label class="form-check-label small" for="permission-customers-list">
+                                         <i class="fas fa-list text-muted"></i> Lista de Clientes
+                                     </label>
+                                 </div>
+                                 <div class="form-check">
+                                     <input class="form-check-input" type="checkbox" name="permisos[]" value="customers_overdue" id="permission-customers-overdue">
+                                     <label class="form-check-label small" for="permission-customers-overdue">
+                                         <i class="fas fa-clock text-muted"></i> Pagos Vencidos
+                                     </label>
+                                 </div>
+                             </div>
+
                              <div class="form-check">
                                  <input class="form-check-input" type="checkbox" name="permisos[]" value="coins" id="permission-coins">
                                  <label class="form-check-label" for="permission-coins">
@@ -294,17 +312,55 @@
                                      <i class="fas fa-cash-register text-danger"></i> Cobranzas
                                  </label>
                              </div>
+
+                             <!-- Reportes y Submenús -->
                              <div class="form-check">
                                  <input class="form-check-input" type="checkbox" name="permisos[]" value="reports" id="permission-reports">
                                  <label class="form-check-label" for="permission-reports">
-                                     <i class="fas fa-chart-line text-info"></i> Reportes
+                                     <i class="fas fa-chart-line text-info"></i> <strong>Reportes</strong>
                                  </label>
                              </div>
+                             <div class="ml-3">
+                                 <div class="form-check">
+                                     <input class="form-check-input" type="checkbox" name="permisos[]" value="reports_collector_commissions" id="permission-reports-collector">
+                                     <label class="form-check-label small" for="permission-reports-collector">
+                                         <i class="fas fa-user-tie text-muted"></i> Comisiones por Cobrador
+                                     </label>
+                                 </div>
+                                 <div class="form-check">
+                                     <input class="form-check-input" type="checkbox" name="permisos[]" value="reports_admin_commissions" id="permission-reports-admin">
+                                     <label class="form-check-label small" for="permission-reports-admin">
+                                         <i class="fas fa-user-shield text-muted"></i> Comisiones por Administrador
+                                     </label>
+                                 </div>
+                                 <div class="form-check">
+                                     <input class="form-check-input" type="checkbox" name="permisos[]" value="reports_general_customer" id="permission-reports-general">
+                                     <label class="form-check-label small" for="permission-reports-general">
+                                         <i class="fas fa-users-cog text-muted"></i> Comisiones General x Cliente
+                                     </label>
+                                 </div>
+                             </div>
+
+                             <!-- Configuración y Submenús -->
                              <div class="form-check">
                                  <input class="form-check-input" type="checkbox" name="permisos[]" value="config" id="permission-config">
                                  <label class="form-check-label" for="permission-config">
-                                     <i class="fas fa-cogs text-secondary"></i> Configuración
+                                     <i class="fas fa-cogs text-secondary"></i> <strong>Configuración</strong>
                                  </label>
+                             </div>
+                             <div class="ml-3">
+                                 <div class="form-check">
+                                     <input class="form-check-input" type="checkbox" name="permisos[]" value="config_edit_data" id="permission-config-edit">
+                                     <label class="form-check-label small" for="permission-config-edit">
+                                         <i class="fas fa-edit text-muted"></i> Editar Datos
+                                     </label>
+                                 </div>
+                                 <div class="form-check">
+                                     <input class="form-check-input" type="checkbox" name="permisos[]" value="config_change_password" id="permission-config-password">
+                                     <label class="form-check-label small" for="permission-config-password">
+                                         <i class="fas fa-key text-muted"></i> Cambiar Contraseña
+                                     </label>
+                                 </div>
                              </div>
                          </div>
                      </div>

@@ -21,7 +21,19 @@ class Amortization {
         if ($rate == 0) {
             return $pv / $nper;
         }
-        return $pv * $rate / (1 - pow(1 + $rate, -$nper));
+        // Usar BCMath para precisión
+        $rate_bc = bcmul($rate, '1', 8);
+        $nper_bc = bcmul($nper, '1', 0);
+        $pv_bc = bcmul($pv, '100', 0); // Convertir a centavos
+
+        $rate_plus_one = bcadd('1', $rate_bc, 8);
+        $power = bcpow($rate_plus_one, bcmul('-1', $nper_bc, 0), 8);
+        $denominator = bcsub('1', $power, 8);
+
+        $numerator = bcmul($rate_bc, $pv_bc, 8);
+        $result_cents = bcdiv($numerator, $denominator, 2);
+
+        return bcdiv($result_cents, '100', 2); // Convertir de centavos
     }
     
     /**
@@ -33,9 +45,11 @@ class Amortization {
      * @param string $payment_frequency Frecuencia de pago (diario, semanal, quincenal, mensual)
      * @param string $start_date Fecha de inicio del préstamo
      * @param string $method Método de amortización ('francesa', 'estadounidense', 'mixta')
+     * @param string $tasa_tipo Tipo de tasa ('TNA', 'periodica')
+     * @param string $payment_start_date Fecha de inicio de cobros en formato dd/mm/yyyy
      * @return array Tabla de amortización
      */
-    public function calculate_amortization_table($principal, $periodic_rate, $periods, $payment_frequency, $start_date, $method) {
+    public function calculate_amortization_table($principal, $periodic_rate, $periods, $payment_frequency, $start_date, $method, $tasa_tipo = 'TNA', $payment_start_date = null) {
         error_log("Amortization type en librería: " . $method);
         log_message('debug', 'Iniciando cálculo de tabla de amortización: principal=' . $principal . ', periodic_rate=' . $periodic_rate . ', periods=' . $periods . ', method=' . $method . ', frequency=' . $payment_frequency . ', start_date=' . $start_date);
 
@@ -51,6 +65,11 @@ class Amortization {
         }
         try {
             error_log('Fecha en Amortization: ' . $start_date);
+            // Convertir formato dd/mm/yyyy a yyyy-mm-dd si es necesario
+            if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $start_date)) {
+                $parts = explode('/', $start_date);
+                $start_date = $parts[2] . '-' . $parts[1] . '-' . $parts[0];
+            }
             $start_date = date('Y-m-d', strtotime($start_date)); new DateTime($start_date);
         } catch (Exception $e) {
             throw new Exception('La fecha de inicio no es válida.');
@@ -67,13 +86,27 @@ class Amortization {
         if ($method === 'mixta') {
             $payment_frequency = 'quincenal';
             log_message('debug', 'Amortización mixta forzada a frecuencia quincenal');
+
+            // CORRECCIÓN: Manejo correcto de tasas para amortización mixta
+            if (strtolower($tasa_tipo) === 'tna') {
+                // TNA: convertir a tasa quincenal efectiva
+                $periodic_rate = $periodic_rate / 24; // TNA / 24 períodos quincenales por año
+                log_message('debug', 'Tasa TNA convertida a quincenal: ' . ($periodic_rate * 100) . '%');
+            } elseif (strtolower($tasa_tipo) === 'periodica') {
+                // Periódica: la tasa ya viene como quincenal, mantener como está
+                log_message('debug', 'Tasa ya es periódica quincenal: ' . ($periodic_rate * 100) . '%');
+            } else {
+                // Default: asumir TNA si no está especificado
+                $periodic_rate = $periodic_rate / 24;
+                log_message('debug', 'Tasa no especificada, asumiendo TNA convertida a quincenal: ' . ($periodic_rate * 100) . '%');
+            }
         }
 
         // Calcular intervalo de fechas
         $date_interval = $this->get_date_interval($payment_frequency);
 
-        // Generar fechas de pago
-        $payment_dates = $this->generate_payment_dates($start_date, $periods, $date_interval);
+        // Generar fechas de pago basadas en el día de inicio de cobros
+        $payment_dates = $this->generate_payment_dates_based_on_day($start_date, $periods, $date_interval, $payment_start_date, $payment_frequency);
 
         $amortization_table = [];
 
@@ -105,36 +138,42 @@ class Amortization {
      */
     private function calculate_french_method($principal, $periodic_rate, $periods, $payment_dates) {
         $amortization_table = [];
-        
-        // Calcular cuota fija usando la función pmt
+
+        // Calcular cuota fija usando la función pmt con BCMath
         $payment = $this->pmt($periodic_rate, $periods, $principal);
-        
+
         $balance = $principal;
         $total_principal_paid = 0;
-        
+
         for ($i = 0; $i < $periods; $i++) {
-            $interest_payment = $balance * $periodic_rate;
-            $principal_payment = $payment - $interest_payment;
-            
+            // Usar BCMath para cálculos precisos
+            $interest_payment = bcmul($balance, $periodic_rate, 2);
+            $principal_payment = bcsub($payment, $interest_payment, 2);
+
             // Ajustar la última cuota para evitar diferencias por redondeo
             if ($i == $periods - 1) {
                 $principal_payment = $balance; // Pago el saldo restante
-                $payment = $principal_payment + $interest_payment; // Recalcular la cuota
+                $payment = bcadd($principal_payment, $interest_payment, 2); // Recalcular la cuota
             }
-            
-            $balance = $balance - $principal_payment;
-            $total_principal_paid += $principal_payment;
-            
+
+            $balance = bcsub($balance, $principal_payment, 2);
+            $total_principal_paid = bcadd($total_principal_paid, $principal_payment, 2);
+
+            // Asegurar que el balance nunca sea negativo
+            if (bccomp($balance, '0', 2) < 0) {
+                $balance = '0.00';
+            }
+
             $amortization_table[] = [
                 'period' => $i + 1,
                 'payment_date' => $payment_dates[$i],
-                'payment' => round($payment, 2),
-                'principal' => round($principal_payment, 2),
-                'interest' => round($interest_payment, 2),
-                'balance' => round($balance, 2)
+                'payment' => round(floatval($payment), 2),
+                'principal' => round(floatval($principal_payment), 2),
+                'interest' => round(floatval($interest_payment), 2),
+                'balance' => round(floatval($balance), 2)
             ];
         }
-        
+
         return $amortization_table;
     }
     
@@ -173,8 +212,8 @@ class Amortization {
     }
     
     /**
-     * Método Mixto (Capital fijo + interés sobre saldo, o alterno para quincenal)
-     * Para quincenal: alterna solo interés y solo capital.
+     * Método Mixto (Alternancia de capital e interés para quincenal)
+     * Para quincenal: alterna pagos de capital e interés según el patrón especificado.
      * Para otras frecuencias: capital fijo + interés sobre saldo.
      */
     private function calculate_mixed_method($principal, $periodic_rate, $periods, $payment_dates, $payment_frequency) {
@@ -182,43 +221,73 @@ class Amortization {
         $balance = $principal;
 
         if ($payment_frequency === 'quincenal') {
-            // Patrón alterno: primer pago solo interés, segundo solo capital, y así sucesivamente
+            // CORRECCIÓN: Patrón correcto para amortización mixta quincenal
+            // - Períodos impares (1,3,5,...): solo capital
+            // - Períodos pares (2,4,6,...): solo interés
+            // El capital se distribuye uniformemente entre los pagos de capital
+
+            // Calcular número de pagos de capital (períodos impares)
+            $capital_payments = ceil($periods / 2); // Número de períodos impares
+            $capital_per_payment = bcdiv($principal, $capital_payments, 2); // Capital uniforme por pago con BCMath
+
             for ($i = 0; $i < $periods; $i++) {
-                if (($i % 2) == 0) {
-                    // Pagos impares (1,3,5,...): solo interés
-                    $interest_payment = $balance * $periodic_rate;
-                    $principal_payment = 0;
-                    $payment = $interest_payment;
-                } else {
-                    // Pagos pares (2,4,6,...): solo capital
-                    $interest_payment = 0;
-                    $principal_payment = $balance; // Pagar todo el capital restante en el último pago de capital
+                $period_number = $i + 1; // Número de período (1, 2, 3, ...)
+
+                // Si el balance ya es 0, no generar más pagos
+                if (bccomp($balance, '0', 2) <= 0) {
+                    break;
+                }
+
+                if ($period_number % 2 == 1) {
+                    // Períodos impares: solo capital
+                    $interest_payment = '0.00';
+                    $principal_payment = $capital_per_payment;
+
+                    // Ajustar el último pago de capital para evitar diferencias por redondeo
+                    if (bccomp($balance, $capital_per_payment, 2) <= 0) {
+                        $principal_payment = $balance;
+                    }
+
                     $payment = $principal_payment;
-                    $balance = 0; // Después de pagar capital, balance es 0
+                    $balance = bcsub($balance, $principal_payment, 2);
+
+                } else {
+                    // Períodos pares: solo interés sobre el saldo actual
+                    $interest_payment = bcmul($balance, $periodic_rate, 2);
+                    $principal_payment = '0.00';
+                    $payment = $interest_payment;
+                    // Balance no cambia en pagos de interés
                 }
 
-                // Para el último período, ajustar si es necesario
-                if ($i == $periods - 1 && $balance > 0) {
-                    $principal_payment = $balance;
-                    $payment = $principal_payment + $interest_payment;
-                    $balance = 0;
+                // Asegurar que el balance nunca sea negativo
+                if (bccomp($balance, '0', 2) < 0) {
+                    $balance = '0.00';
                 }
 
-                $amortization_table[] = [
-                    'period' => $i + 1,
-                    'payment_date' => $payment_dates[$i],
-                    'payment' => round($payment, 2),
-                    'principal' => round($principal_payment, 2),
-                    'interest' => round($interest_payment, 2),
-                    'balance' => round($balance, 2)
-                ];
+                // Solo agregar a la tabla si hay pago (evitar cuotas en 0)
+                if (bccomp($payment, '0', 2) > 0) {
+                    $amortization_table[] = [
+                        'period' => $period_number,
+                        'payment_date' => $payment_dates[$i],
+                        'payment' => round(floatval($payment), 2),
+                        'principal' => round(floatval($principal_payment), 2),
+                        'interest' => round(floatval($interest_payment), 2),
+                        'balance' => round(floatval($balance), 2)
+                    ];
+                }
+            }
+
+            // Ajuste final: asegurar que el último saldo sea exactamente 0.00
+            if (!empty($amortization_table)) {
+                $last_index = count($amortization_table) - 1;
+                $amortization_table[$last_index]['balance'] = 0.00;
             }
         } else {
             // Lógica original para otras frecuencias: capital fijo + interés sobre saldo
-            $base_principal_payment = $principal / $periods;
+            $base_principal_payment = bcdiv($principal, $periods, 2);
 
             for ($i = 0; $i < $periods; $i++) {
-                $interest_payment = $balance * $periodic_rate;
+                $interest_payment = bcmul($balance, $periodic_rate, 2);
                 $principal_payment = $base_principal_payment;
 
                 // Ajustar la última cuota para evitar diferencias por redondeo
@@ -226,16 +295,21 @@ class Amortization {
                     $principal_payment = $balance; // Pago el saldo restante
                 }
 
-                $payment = $principal_payment + $interest_payment;
-                $balance = $balance - $principal_payment;
+                $payment = bcadd($principal_payment, $interest_payment, 2);
+                $balance = bcsub($balance, $principal_payment, 2);
+
+                // Asegurar que el balance nunca sea negativo
+                if (bccomp($balance, '0', 2) < 0) {
+                    $balance = '0.00';
+                }
 
                 $amortization_table[] = [
                     'period' => $i + 1,
                     'payment_date' => $payment_dates[$i],
-                    'payment' => round($payment, 2),
-                    'principal' => round($principal_payment, 2),
-                    'interest' => round($interest_payment, 2),
-                    'balance' => round($balance, 2)
+                    'payment' => round(floatval($payment), 2),
+                    'principal' => round(floatval($principal_payment), 2),
+                    'interest' => round(floatval($interest_payment), 2),
+                    'balance' => round(floatval($balance), 2)
                 ];
             }
         }
@@ -263,20 +337,48 @@ class Amortization {
     }
     
     /**
-     * Genera las fechas de pago
+     * Genera las fechas de pago basadas en la fecha de inicio de cobros especificada para TODAS las frecuencias
+     */
+    private function generate_payment_dates_based_on_day($start_date, $periods, $date_interval, $payment_start_date = null, $payment_frequency = 'mensual') {
+        $dates = [];
+
+        // Si no se especifica fecha de inicio de cobros, usar el método original
+        if ($payment_start_date === null) {
+            return $this->generate_payment_dates($start_date, $periods, $date_interval);
+        }
+
+        // Para TODAS las frecuencias: usar la fecha de inicio de cobros especificada como primera fecha de pago
+        $first_payment_date = DateTime::createFromFormat('d/m/Y', $payment_start_date);
+        if (!$first_payment_date) {
+            throw new Exception('Fecha de inicio de cobros no es válida.');
+        }
+
+        // Ahora generar todas las fechas usando intervalos desde la primera fecha ajustada
+        $current_date = clone $first_payment_date;
+
+        for ($i = 0; $i < $periods; $i++) {
+            $dates[] = $current_date->format('Y-m-d');
+            $current_date->add(new DateInterval($date_interval));
+        }
+
+        return $dates;
+    }
+
+    /**
+     * Genera las fechas de pago (método original para compatibilidad)
      */
     private function generate_payment_dates($start_date, $periods, $date_interval) {
         $dates = [];
         $start = new DateTime($start_date);
         $interval = new DateInterval($date_interval);
-        
+
         for ($i = 0; $i < $periods; $i++) {
             $payment_date = clone $start;
             $payment_date->add($interval);
             $dates[] = $payment_date->format('Y-m-d');
             $start = $payment_date;
         }
-        
+
         return $dates;
     }
     
@@ -305,7 +407,7 @@ class Amortization {
     /**
      * Calcula la amortización vía AJAX para mostrar en tiempo real
      */
-    public function ajax_calculate_amortization($principal, $periodic_rate, $periods, $payment_frequency, $start_date, $method) {
+    public function ajax_calculate_amortization($principal, $periodic_rate, $periods, $payment_frequency, $start_date, $method, $tasa_tipo = 'TNA', $payment_start_date = null) {
         log_message('debug', 'Iniciando cálculo AJAX de amortización');
         try {
             $amortization_table = $this->calculate_amortization_table(
@@ -314,16 +416,22 @@ class Amortization {
                 $periods,
                 $payment_frequency,
                 $start_date,
-                $method
+                $method,
+                $tasa_tipo,
+                $payment_start_date
             );
 
             $summary = $this->calculate_loan_summary($amortization_table);
             log_message('debug', 'Cálculo AJAX completado exitosamente');
 
+            // DIAGNÓSTICO: Agregar validaciones de coherencia
+            $diagnostics = $this->validate_amortization_coherence($amortization_table, $principal, $method, $tasa_tipo);
+
             return [
                 'success' => true,
                 'amortization_table' => $amortization_table,
-                'summary' => $summary
+                'summary' => $summary,
+                'diagnostics' => $diagnostics
             ];
 
         } catch (Exception $e) {
@@ -333,6 +441,84 @@ class Amortization {
                 'error' => $e->getMessage()
             ];
         }
+    }
+
+    /**
+     * Valida la coherencia de la tabla de amortización
+     */
+    private function validate_amortization_coherence($table, $principal, $method, $tasa_tipo) {
+        $diagnostics = [
+            'is_coherent' => true,
+            'issues' => [],
+            'recommendations' => []
+        ];
+
+        $total_capital = 0;
+        $total_interes = 0;
+        $total_cuota = 0;
+        $final_balance = end($table)['balance'];
+
+        foreach ($table as $row) {
+            $total_capital += $row['principal'];
+            $total_interes += $row['interest'];
+            $total_cuota += $row['payment'];
+        }
+
+        // Validación 1: Suma de capital debe igualar al principal
+        if (abs($total_capital - $principal) > 0.01) {
+            $diagnostics['is_coherent'] = false;
+            $diagnostics['issues'][] = "Suma de capital ($total_capital) no coincide con principal ($principal)";
+        }
+
+        // Validación 2: Saldo final debe ser 0
+        if (abs($final_balance) > 0.01) {
+            $diagnostics['is_coherent'] = false;
+            $diagnostics['issues'][] = "Saldo final ($final_balance) no es cero";
+        }
+
+        // Validación 3: Para amortización mixta, validar patrón alterno
+        if ($method === 'mixta') {
+            $pattern_valid = true;
+            foreach ($table as $i => $row) {
+                $period = $i + 1;
+                if ($period % 2 == 1) {
+                    // Períodos impares: solo capital
+                    if ($row['interest'] != 0) {
+                        $pattern_valid = false;
+                        break;
+                    }
+                } else {
+                    // Períodos pares: solo interés
+                    if ($row['principal'] != 0) {
+                        $pattern_valid = false;
+                        break;
+                    }
+                }
+            }
+
+            if (!$pattern_valid) {
+                $diagnostics['is_coherent'] = false;
+                $diagnostics['issues'][] = "Patrón alterno interés-capital no se cumple correctamente";
+                $diagnostics['recommendations'][] = "Revisar lógica de períodos impares (capital) y pares (interés)";
+            }
+        }
+
+        // Validación 4: Verificar que no hay cuotas en 0
+        $zero_payments = array_filter($table, function($row) { return $row['payment'] <= 0; });
+        if (count($zero_payments) > 0) {
+            $diagnostics['is_coherent'] = false;
+            $diagnostics['issues'][] = "Se encontraron " . count($zero_payments) . " cuotas con valor cero";
+            $diagnostics['recommendations'][] = "Eliminar filas con cuota = 0 de la tabla";
+        }
+
+        // Recomendaciones basadas en tipo de tasa
+        if ($tasa_tipo === 'TNA' && $method === 'mixta') {
+            $diagnostics['recommendations'][] = "Tasa TNA convertida correctamente a quincenal (/24)";
+        } elseif ($tasa_tipo === 'periodica' && $method === 'mixta') {
+            $diagnostics['recommendations'][] = "Tasa periódica aplicada directamente (ya es quincenal)";
+        }
+
+        return $diagnostics;
     }
 
     /**

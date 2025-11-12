@@ -384,7 +384,7 @@ class Config extends MY_Controller {
         'reports' => true,
         'config' => true
       ],
-      'operador' => [
+      'Colaborador' => [
         'dashboard' => true,
         'customers' => true,
         'coins' => false,
@@ -393,7 +393,7 @@ class Config extends MY_Controller {
         'reports' => true,
         'config' => false
       ],
-      'viewer' => [
+      'Visitante' => [
         'dashboard' => true,
         'customers' => false,
         'coins' => false,

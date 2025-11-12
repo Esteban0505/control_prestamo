@@ -8,17 +8,11 @@
     <i class="fa fa-bars"></i>
   </button>
 
-  <!-- Barra de búsqueda -->
-<form class="form-inline mr-auto ml-md-3 my-2 my-md-0">
-  <div class="input-group" style="position: relative;">
-    <input type="text" class="form-control bg-dark text-light border-0" 
-           placeholder="Buscar..." 
-           style="padding-left: 2.2rem; border-radius: 30px; background:#0f1f3b;">
-    <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#f2c94c;">
-      <i class="fas fa-search"></i>
-    </span>
+  <!-- Reloj en tiempo real -->
+  <div class="mr-auto ml-md-3 my-2 my-md-0">
+      <span id="realtime-clock" class=" text-light"
+            style="border-radius: 30px; padding: 0.375rem 0.75rem; display: inline-block; border: none;"></span>
   </div>
-</form>
 
 
   <!-- Topbar Navbar -->
@@ -45,14 +39,6 @@
 
   <!-- Dropdown -->
   <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in" aria-labelledby="userDropdown">
-    <a class="dropdown-item" href="#">
-      <i class="fas fa-user fa-sm fa-fw mr-2 text-secondary"></i>
-      Perfil
-    </a>
-    <a class="dropdown-item" href="#">
-      <i class="fas fa-cog fa-sm fa-fw mr-2 text-secondary"></i>
-      Configuración
-    </a>
     <div class="dropdown-divider"></div>
     <a class="dropdown-item" href="<?php echo site_url('user/logout'); ?>">
       <i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-danger"></i>
@@ -64,3 +50,29 @@
 
   </ul>
 </nav>
+
+<script>
+function updateClock() {
+    const now = new Date();
+    const dateOptions = {
+        timeZone: 'America/Bogota',
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+    };
+    const timeOptions = {
+        timeZone: 'America/Bogota',
+        hour12: true,
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit'
+    };
+    let dateString = now.toLocaleDateString('es-CO', dateOptions);
+    dateString = dateString.charAt(0).toUpperCase() + dateString.slice(1);
+    const timeString = now.toLocaleTimeString('es-CO', timeOptions);
+    document.getElementById('realtime-clock').innerHTML = '<i class="fas fa-clock text-light mr-2"></i>' + dateString + ' - ' + timeString;
+}
+setInterval(updateClock, 1000);
+updateClock(); // Initial call
+</script>

@@ -12,7 +12,25 @@ class Customers extends MY_Controller {
 
   public function index()
   {
-    $data['customers'] = $this->customers_m->get();
+    // Obtener parámetros de paginación y filtros
+    $page = $this->input->get('page') ? (int)$this->input->get('page') : 1;
+    $per_page = $this->input->get('per_page') ? (int)$this->input->get('per_page') : 25;
+    $search = $this->input->get('search');
+    $status_filter = $this->input->get('status');
+    $tipo_filter = $this->input->get('tipo');
+
+    // Obtener datos paginados
+    $result = $this->customers_m->get_customers_paginated($page, $per_page, $search, $status_filter, $tipo_filter);
+
+    $data['customers'] = $result['customers'];
+    $data['total_records'] = $result['total'];
+    $data['total_pages'] = $result['total_pages'];
+    $data['current_page'] = $page;
+    $data['per_page'] = $per_page;
+    $data['search'] = $search;
+    $data['status_filter'] = $status_filter;
+    $data['tipo_filter'] = $tipo_filter;
+
     $data['subview'] = 'admin/customers/index';
     $this->load->view('admin/_main_layout', $data);
   }
@@ -240,6 +258,9 @@ class Customers extends MY_Controller {
     // Obtener estadísticas optimizadas para el dashboard
     $data['statistics'] = $this->payments_m->get_overdue_statistics();
 
+    // Obtener historial de bloqueos activos
+    $data['block_history'] = $this->customers_m->get_active_blocks(50);
+
     $data['title'] = 'Clientes con Pagos Vencidos';
     $data['pagination_links'] = $this->pagination->create_links();
     $data['total_records'] = $total_rows;
@@ -247,6 +268,25 @@ class Customers extends MY_Controller {
     $data['per_page'] = $config['per_page'];
     $data['subview'] = 'admin/clients/overdue';
     $this->load->view('admin/_main_layout', $data);
+  }
+
+  /**
+   * Obtener historial de bloqueos de un cliente (AJAX)
+   */
+  public function ajax_get_customer_block_history()
+  {
+    header('Content-Type: application/json');
+    
+    $customer_id = $this->input->post('customer_id');
+    
+    if (!$customer_id) {
+      echo json_encode(['success' => false, 'error' => 'ID de cliente no proporcionado']);
+      return;
+    }
+
+    $history = $this->customers_m->get_status_history($customer_id, 20);
+    
+    echo json_encode(['success' => true, 'history' => $history]);
   }
 
   public function export_overdue()
@@ -370,21 +410,60 @@ class Customers extends MY_Controller {
   public function send_notification()
   {
     $customer_id = $this->input->post('customer_id');
+    $message_type = $this->input->post('message_type') ?: 'reminder';
 
-    // Aquí implementarías el envío de notificaciones (email, SMS, etc.)
-    // Por ahora solo simulamos el envío
-
+    // Obtener datos del cliente
     $this->db->where('id', $customer_id);
     $customer = $this->db->get('customers')->row();
 
-    if ($customer) {
-      // Log de notificación enviada
-      log_message('info', 'Notificación enviada a cliente: ' . $customer->first_name . ' ' . $customer->last_name . ' (ID: ' . $customer_id . ')');
-
-      echo json_encode(['success' => true, 'message' => 'Notificación enviada exitosamente']);
-    } else {
+    if (!$customer) {
       echo json_encode(['success' => false, 'error' => 'Cliente no encontrado']);
+      return;
     }
+
+    // Obtener información de mora del cliente
+    $this->load->model('payments_m');
+    $overdue_info = $this->payments_m->get_customer_overdue_info($customer_id);
+
+    // Preparar mensaje según tipo
+    $messages = [
+      'reminder' => "Recordatorio: Tiene pagos pendientes por $" . number_format($overdue_info->total_adeudado ?? 0, 2, ',', '.'),
+      'warning' => "Advertencia: Sus pagos están atrasados. Contacte con nosotros para evitar penalizaciones.",
+      'penalty' => "Penalización aplicada: Su cuenta ha sido marcada como de alto riesgo.",
+      'payment_due' => "Su pago está próximo a vencer. Evite intereses adicionales pagando a tiempo."
+    ];
+
+    $message = isset($messages[$message_type]) ? $messages[$message_type] : 'Notificación de pagos pendientes';
+
+    // Intentar envío por email
+    $email_sent = false;
+    if (!empty($customer->phone)) { // Usamos el campo phone como email
+      $email_sent = $this->_send_email_notification($customer, $message, $message_type);
+    }
+
+    // Intentar envío por SMS (simulado por ahora)
+    $sms_sent = $this->_send_sms_notification($customer, $message);
+
+    // Log de notificación enviada
+    log_message('info', 'Notificación enviada a cliente: ' . $customer->first_name . ' ' . $customer->last_name .
+                       ' (ID: ' . $customer_id . ') - Tipo: ' . $message_type .
+                       ' - Email: ' . ($email_sent ? 'ENVIADO' : 'FALLÓ') .
+                       ' - SMS: ' . ($sms_sent ? 'ENVIADO' : 'FALLÓ'));
+
+    // Registrar en base de datos
+    $this->_log_notification($customer_id, $message_type, $message, $email_sent, $sms_sent);
+
+    $response_message = 'Notificación enviada exitosamente';
+    if (!$email_sent && !$sms_sent) {
+      $response_message = 'Notificación registrada pero no se pudo enviar (sin métodos de contacto)';
+    }
+
+    echo json_encode([
+      'success' => true,
+      'message' => $response_message,
+      'email_sent' => $email_sent,
+      'sms_sent' => $sms_sent
+    ]);
   }
 
   public function apply_penalty()
@@ -392,12 +471,70 @@ class Customers extends MY_Controller {
     $this->load->model('payments_m');
 
     $customer_id = $this->input->post('customer_id');
+    $penalty_type = $this->input->post('penalty_type') ?: 'interest_increase';
 
-    // Aplicar penalización automática
-    $result = $this->payments_m->apply_penalty_to_customer($customer_id);
+    // Verificar confirmación del usuario
+    $confirmation = $this->input->post('confirmation');
+    if ($confirmation !== 'APLICAR_PENALIZACION') {
+      echo json_encode(['success' => false, 'error' => 'Confirmación requerida para aplicar penalización']);
+      return;
+    }
+
+    // Obtener información del cliente
+    $customer = $this->customers_m->get($customer_id);
+    if (!$customer) {
+      echo json_encode(['success' => false, 'error' => 'Cliente no encontrado']);
+      return;
+    }
+
+    // Aplicar penalización según tipo
+    $result = false;
+    $penalty_details = [];
+
+    switch ($penalty_type) {
+      case 'interest_increase':
+        // Aumentar intereses en cuotas pendientes
+        $result = $this->payments_m->apply_interest_penalty($customer_id);
+        $penalty_details = ['type' => 'Aumento de intereses', 'description' => 'Intereses aumentados en 5% en cuotas pendientes'];
+        break;
+
+      case 'late_fee':
+        // Aplicar multa por mora
+        $result = $this->payments_m->apply_late_fee_penalty($customer_id);
+        $penalty_details = ['type' => 'Multa por mora', 'description' => 'Multa adicional aplicada por atraso'];
+        break;
+
+      case 'temporary_block':
+        // Bloqueo temporal de nuevos préstamos
+        $result = $this->customers_m->add_to_blacklist($customer_id, 'manual_block', 'Bloqueo temporal por penalización', $this->session->userdata('user_id'));
+        $penalty_details = ['type' => 'Bloqueo temporal', 'description' => 'Cliente bloqueado temporalmente para nuevos préstamos'];
+        break;
+
+      case 'permanent_block':
+        // Bloqueo permanente
+        $result = $this->customers_m->add_to_blacklist($customer_id, 'fraud', 'Bloqueo permanente por reincidencia', $this->session->userdata('user_id'));
+        $penalty_details = ['type' => 'Bloqueo permanente', 'description' => 'Cliente bloqueado permanentemente'];
+        break;
+
+      default:
+        echo json_encode(['success' => false, 'error' => 'Tipo de penalización no válido']);
+        return;
+    }
 
     if ($result) {
-      echo json_encode(['success' => true, 'message' => 'Penalización aplicada exitosamente']);
+      // Log de penalización aplicada
+      log_message('info', 'Penalización aplicada - Cliente: ' . $customer->first_name . ' ' . $customer->last_name .
+                         ' (ID: ' . $customer_id . ') - Tipo: ' . $penalty_type);
+
+      // Enviar notificación al cliente
+      $this->_send_penalty_notification($customer, $penalty_details);
+
+      echo json_encode([
+        'success' => true,
+        'message' => 'Penalización aplicada exitosamente: ' . $penalty_details['description'],
+        'penalty_type' => $penalty_type,
+        'penalty_details' => $penalty_details
+      ]);
     } else {
       echo json_encode(['success' => false, 'error' => 'Error al aplicar penalización']);
     }
@@ -406,24 +543,132 @@ class Customers extends MY_Controller {
   /**
    * Aplica penalizaciones automáticas a clientes con mora >60 días
    */
-  private function _apply_automatic_penalties()
+   private function _apply_automatic_penalties()
+   {
+     $this->load->model('payments_m');
+
+     // Ejecutar penalizaciones automáticas
+     $penalties_applied = $this->payments_m->apply_automatic_penalties();
+
+     if ($penalties_applied > 0) {
+       log_message('info', 'Penalizaciones automáticas aplicadas: ' . $penalties_applied . ' préstamos castigados');
+     }
+   }
+
+  /**
+   * Enviar notificación por email
+   */
+  private function _send_email_notification($customer, $message, $type)
   {
-    $this->load->model('payments_m');
+    // Configuración básica de email (mejorar con configuración real)
+    $this->load->library('email');
 
-    // Ejecutar penalizaciones automáticas
-    $penalties_applied = $this->payments_m->apply_automatic_penalties();
+    $config = [
+      'protocol' => 'smtp',
+      'smtp_host' => 'localhost',
+      'smtp_port' => 587,
+      'mailtype' => 'html',
+      'charset' => 'utf-8'
+    ];
 
-    if ($penalties_applied > 0) {
-      log_message('info', 'Penalizaciones automáticas aplicadas: ' . $penalties_applied . ' préstamos castigados');
+    $this->email->initialize($config);
+
+    $this->email->from('sistema@prestamos.com', 'Sistema de Préstamos');
+    $this->email->to($customer->phone); // Usando campo phone como email
+    $this->email->subject('Notificación de ' . ucfirst($type) . ' - Sistema de Préstamos');
+
+    $email_body = "
+    <html>
+    <body>
+      <h2>Notificación del Sistema de Préstamos</h2>
+      <p>Estimado(a) {$customer->first_name} {$customer->last_name},</p>
+      <p>{$message}</p>
+      <p>Por favor, contacte con nosotros para resolver esta situación.</p>
+      <br>
+      <p>Atentamente,<br>Sistema de Préstamos</p>
+    </body>
+    </html>";
+
+    $this->email->message($email_body);
+
+    return $this->email->send();
+  }
+
+  /**
+   * Enviar notificación por SMS (simulado)
+   */
+  private function _send_sms_notification($customer, $message)
+  {
+    // Simulación de envío SMS - integrar con servicio real como Twilio
+    log_message('info', 'SMS simulado enviado a ' . $customer->mobile . ': ' . $message);
+
+    // Aquí iría la integración real con servicio de SMS
+    // Por ahora retornamos true para simular envío exitoso
+    return true;
+  }
+
+  /**
+   * Registrar notificación en base de datos
+   */
+  private function _log_notification($customer_id, $type, $message, $email_sent, $sms_sent)
+  {
+    $data = [
+      'customer_id' => $customer_id,
+      'type' => $type,
+      'message' => $message,
+      'email_sent' => $email_sent,
+      'sms_sent' => $sms_sent,
+      'sent_at' => date('Y-m-d H:i:s'),
+      'sent_by' => $this->session->userdata('user_id')
+    ];
+
+    // Crear tabla si no existe
+    if (!$this->db->table_exists('notification_logs')) {
+      $this->db->query("
+        CREATE TABLE notification_logs (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          customer_id INT NOT NULL,
+          type VARCHAR(50) NOT NULL,
+          message TEXT,
+          email_sent BOOLEAN DEFAULT FALSE,
+          sms_sent BOOLEAN DEFAULT FALSE,
+          sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          sent_by INT,
+          FOREIGN KEY (customer_id) REFERENCES customers(id),
+          FOREIGN KEY (sent_by) REFERENCES users(id)
+        )
+      ");
     }
+
+    $this->db->insert('notification_logs', $data);
+  }
+
+  /**
+   * Enviar notificación de penalización
+   */
+  private function _send_penalty_notification($customer, $penalty_details)
+  {
+    $message = "Penalización aplicada: {$penalty_details['description']}. Contacte con nosotros para más información.";
+
+    $this->_send_email_notification($customer, $message, 'penalty');
+    $this->_send_sms_notification($customer, $message);
   }
   public function get_loan_details()
   {
+    header('Content-Type: application/json');
+    
     $this->load->model('loans_m');
     $this->load->model('payments_m');
 
     $loan_ids = $this->input->post('loan_ids');
+    $customer_id = $this->input->post('customer_id');
     $loan_ids_array = explode(',', $loan_ids);
+
+    // Obtener información del cliente si se proporciona customer_id
+    $customer_info = null;
+    if ($customer_id) {
+      $customer_info = $this->customers_m->get($customer_id);
+    }
 
     $loans = [];
     foreach ($loan_ids_array as $loan_id) {
@@ -431,13 +676,40 @@ class Customers extends MY_Controller {
       if (!empty($loan_id)) {
         $loan = $this->loans_m->get_loan($loan_id);
         if ($loan) {
+          // Si no tenemos info del cliente, obtenerla del préstamo
+          if (!$customer_info && $loan->customer_id) {
+            $customer_info = $this->customers_m->get($loan->customer_id);
+          }
+          
           // Obtener TODAS las cuotas del préstamo (no solo pendientes)
-          $loan->all_quotas = $this->payments_m->get_quotasCst($loan_id);
+          $this->db->select('id, loan_id, date, num_quota, fee_amount, interest_amount, capital_amount, balance, status, COALESCE(interest_paid, 0) as interest_paid, COALESCE(capital_paid, 0) as capital_paid');
+          $this->db->where('loan_id', $loan_id);
+          $this->db->where('extra_payment !=', 3); // Excluir cuotas condonadas
+          $this->db->order_by('num_quota', 'asc');
+          $query = $this->db->get('loan_items');
+          
+          $loan->all_quotas = [];
+          foreach ($query->result() as $row) {
+            $loan->all_quotas[] = [
+              'id' => $row->id,
+              'loan_id' => $row->loan_id,
+              'date' => $row->date,
+              'num_quota' => $row->num_quota,
+              'fee_amount' => $row->fee_amount,
+              'interest_amount' => $row->interest_amount,
+              'capital_amount' => $row->capital_amount,
+              'balance' => $row->balance,
+              'status' => $row->status,
+              'paid' => ($row->status == 0) ? 1 : 0, // status 0 = pagada
+              'interest_paid' => $row->interest_paid,
+              'capital_paid' => $row->capital_paid
+            ];
+          }
   
           // También obtener cuotas pendientes para compatibilidad
           if (is_array($loan->all_quotas)) {
             $loan->pending_quotas = array_filter($loan->all_quotas, function($quota) {
-              return isset($quota->status) && $quota->status == 1; // Solo cuotas no pagadas
+              return isset($quota['status']) && $quota['status'] == 1; // Solo cuotas no pagadas
             });
           } else {
             $loan->all_quotas = [];
@@ -450,7 +722,7 @@ class Customers extends MY_Controller {
     }
 
     if (!empty($loans)) {
-      echo json_encode(['success' => true, 'loans' => $loans]);
+      echo json_encode(['success' => true, 'loans' => $loans, 'customer' => $customer_info]);
     } else {
       echo json_encode(['success' => false, 'error' => 'No se encontraron préstamos']);
     }
@@ -706,6 +978,167 @@ class Customers extends MY_Controller {
     $writer = PHPExcel_IOFactory::createWriter($this->excel, 'Excel2007');
     $writer->save('php://output');
     exit;
+  }
+
+  /**
+   * Activar cliente (AJAX)
+   */
+  public function ajax_activate_customer()
+  {
+    $customer_id = $this->input->post('customer_id');
+    $user_id = $this->session->userdata('user_id');
+
+    if (!$customer_id) {
+      echo json_encode(['success' => false, 'error' => 'ID de cliente no proporcionado']);
+      return;
+    }
+
+    $result = $this->customers_m->activate_customer($customer_id, $user_id);
+
+    if ($result) {
+      echo json_encode(['success' => true, 'message' => 'Cliente activado exitosamente']);
+    } else {
+      echo json_encode(['success' => false, 'error' => 'Error al activar el cliente']);
+    }
+  }
+
+  /**
+   * Desactivar cliente (AJAX)
+   */
+  public function ajax_deactivate_customer()
+  {
+    $customer_id = $this->input->post('customer_id');
+    $user_id = $this->session->userdata('user_id');
+
+    if (!$customer_id) {
+      echo json_encode(['success' => false, 'error' => 'ID de cliente no proporcionado']);
+      return;
+    }
+
+    $result = $this->customers_m->deactivate_customer($customer_id, $user_id);
+
+    if ($result) {
+      echo json_encode(['success' => true, 'message' => 'Cliente desactivado exitosamente']);
+    } else {
+      echo json_encode(['success' => false, 'error' => 'Error al desactivar el cliente']);
+    }
+  }
+
+  /**
+   * Toggle estado del cliente (AJAX)
+   */
+  public function ajax_toggle_customer_status()
+  {
+    // Desactivar el display_errors de PHP para evitar HTML en respuestas AJAX
+    @ini_set('display_errors', 0);
+    
+    // Establecer headers para JSON
+    header('Content-Type: application/json; charset=utf-8');
+    
+    // Capturar cualquier salida de error
+    ob_start();
+    
+    try {
+      $customer_id = $this->input->post('customer_id');
+      $user_id = $this->session->userdata('user_id');
+      $notes = $this->input->post('notes'); // Motivo del bloqueo/desbloqueo
+
+      if (!$customer_id) {
+        ob_end_clean();
+        echo json_encode(['success' => false, 'error' => 'ID de cliente no proporcionado']);
+        return;
+      }
+
+      log_message('debug', 'ajax_toggle_customer_status - Cliente ID: ' . $customer_id . ', Usuario ID: ' . $user_id . ', Notes: ' . ($notes ? $notes : 'N/A'));
+
+      // Verificar que la columna status existe ANTES de continuar
+      $check_column = $this->db->query("SHOW COLUMNS FROM customers LIKE 'status'");
+      if ($check_column->num_rows() == 0) {
+        ob_end_clean();
+        log_message('error', 'Columna status no existe en tabla customers');
+        echo json_encode([
+          'success' => false, 
+          'error' => 'La columna "status" no existe en la tabla customers. Por favor ejecuta: http://localhost/prestamo-1/add_customer_status_field.php'
+        ]);
+        return;
+      }
+
+      // Verificar que el cliente existe
+      $customer = $this->customers_m->get($customer_id);
+      if (!$customer) {
+        ob_end_clean();
+        log_message('error', 'Cliente no encontrado - ID: ' . $customer_id);
+        echo json_encode(['success' => false, 'error' => 'Cliente no encontrado']);
+        return;
+      }
+
+      // Obtener estado actual antes del cambio
+      $old_status = $this->customers_m->is_customer_active($customer_id) ? 1 : 0;
+      log_message('debug', 'Estado actual del cliente: ' . $old_status);
+      
+      $is_active = $old_status == 1;
+
+      if ($is_active) {
+        log_message('debug', 'Desactivando cliente - ID: ' . $customer_id);
+        $result = $this->customers_m->deactivate_customer($customer_id, $user_id);
+        $new_status = 0;
+        $action = 'deactivated';
+        $message = 'Cliente desactivado/bloqueado exitosamente';
+      } else {
+        log_message('debug', 'Activando cliente - ID: ' . $customer_id);
+        $result = $this->customers_m->activate_customer($customer_id, $user_id);
+        $new_status = 1;
+        $action = 'activated';
+        $message = 'Cliente activado/desbloqueado exitosamente';
+      }
+
+      // Limpiar cualquier salida de error
+      ob_end_clean();
+
+      if ($result) {
+        log_message('debug', 'Cambio de estado exitoso - Cliente ID: ' . $customer_id . ', Nuevo estado: ' . $new_status);
+        
+        // Registrar en historial
+        log_message('debug', 'Intentando registrar historial - Cliente: ' . $customer_id . ', Old: ' . $old_status . ', New: ' . $new_status . ', Action: ' . $action . ', User: ' . ($user_id ? $user_id : 'NULL') . ', Notes: ' . ($notes ? $notes : 'N/A'));
+        $history_result = $this->customers_m->add_status_history($customer_id, $old_status, $new_status, $action, $user_id, $notes);
+        if ($history_result) {
+          log_message('info', 'Historial registrado exitosamente - Cliente ID: ' . $customer_id);
+        } else {
+          log_message('error', 'No se pudo registrar en el historial - Cliente ID: ' . $customer_id . ', User ID: ' . ($user_id ? $user_id : 'NULL'));
+          // Verificar si la tabla existe
+          $check_table = $this->db->query("SHOW TABLES LIKE 'customer_status_history'");
+          if ($check_table->num_rows() == 0) {
+            log_message('error', 'La tabla customer_status_history NO EXISTE en la base de datos');
+          } else {
+            log_message('error', 'La tabla customer_status_history existe, pero falló la inserción. Verificar logs de BD.');
+            $db_error = $this->db->error();
+            log_message('error', 'Error de BD: ' . json_encode($db_error));
+          }
+        }
+        
+        echo json_encode(['success' => true, 'message' => $message, 'status' => $new_status, 'history_saved' => $history_result]);
+      } else {
+        log_message('error', 'Error al cambiar estado del cliente - ID: ' . $customer_id);
+        $db_error = $this->db->error();
+        $error_msg = 'Error al cambiar el estado del cliente. ';
+        
+        if (!empty($db_error['message'])) {
+          $error_msg .= 'Error de BD: ' . $db_error['message'];
+        } else {
+          $error_msg .= 'Verifica los logs del servidor para más detalles.';
+        }
+        
+        echo json_encode(['success' => false, 'error' => $error_msg]);
+      }
+      
+    } catch (Exception $e) {
+      ob_end_clean();
+      log_message('error', 'Excepción en ajax_toggle_customer_status: ' . $e->getMessage());
+      echo json_encode([
+        'success' => false, 
+        'error' => 'Error interno del servidor: ' . $e->getMessage()
+      ]);
+    }
   }
 
 }

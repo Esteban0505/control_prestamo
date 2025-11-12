@@ -93,16 +93,62 @@ try {
     }
 
     // Verificar estado de envío de comisión por cada cliente/préstamo
+    $all_sent = true;
+    $any_sent = false;
+    
+    // Verificar si la columna status existe
+    $column_check = $conn->query("SHOW COLUMNS FROM collector_commissions LIKE 'status'");
+    $has_status_column = ($column_check && $column_check->num_rows > 0);
+    
     foreach ($clients as &$client) {
         $client->commission_status = 'pendiente';
         $client->commission_sent_at = null;
 
-        // La tabla collector_commissions no tiene campos status ni sent_at
-        // Por ahora, marcar todos como pendientes ya que no hay tracking de envío
+        if ($has_status_column) {
+            // Consultar estado real en collector_commissions
+            $sql_status = "SELECT status, MAX(sent_at) as sent_at 
+                          FROM collector_commissions 
+                          WHERE user_id = ? AND loan_id = ?";
+            
+            if ($validated_dates) {
+                $sql_status .= " AND period_start = ? AND period_end = ?";
+            }
+            
+            $sql_status .= " GROUP BY status ORDER BY sent_at DESC LIMIT 1";
+            
+            $stmt_status = $conn->prepare($sql_status);
+            if ($validated_dates) {
+                $stmt_status->bind_param('iiss', $user_id, $client->loan_id, 
+                                         $validated_dates['start'], $validated_dates['end']);
+            } else {
+                $stmt_status->bind_param('ii', $user_id, $client->loan_id);
+            }
+            $stmt_status->execute();
+            $result_status = $stmt_status->get_result();
+            
+            if ($result_status->num_rows > 0) {
+                $status_row = $result_status->fetch_assoc();
+                if ($status_row['status'] == 'enviado') {
+                    $client->commission_status = 'enviado';
+                    $client->commission_sent_at = $status_row['sent_at'];
+                    $any_sent = true;
+                } else {
+                    $all_sent = false;
+                }
+            } else {
+                $all_sent = false;
+            }
+        } else {
+            // Si no existe la columna, todos están pendientes
+            $all_sent = false;
+        }
     }
 
     // Estado general (para compatibilidad con código existente)
-    $send_status = 'pendiente';
+    // Si todos están enviados, el estado general es enviado
+    // Si algunos están enviados, el estado es parcial
+    // Si ninguno está enviado, el estado es pendiente
+    $send_status = $all_sent ? 'enviado' : ($any_sent ? 'parcial' : 'pendiente');
 
     $conn->close();
 

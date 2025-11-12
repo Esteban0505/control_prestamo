@@ -1,5 +1,6 @@
+<?php if (function_exists('can_view') && can_view($this->session->userdata('perfil'), 'sidebar')): ?>
 <ul class="navbar-nav sidebar sidebar-dark accordion toggled fixed-nav"
-    style="background: linear-gradient(180deg, #071e3d 0%, #1b2a49 60%, #0f1f3b 100%);" 
+    style="background: linear-gradient(180deg, #071e3d 0%, #1b2a49 60%, #0f1f3b 100%);"
     id="accordionSidebar">
 
   <!-- Sidebar - Brand -->
@@ -26,27 +27,71 @@
   <hr class="sidebar-divider my-0" style="border-color:#f2c94c;">
 
   <!-- Inicio -->
+  <?php if (function_exists('can_view') && can_view($this->session->userdata('perfil'), 'dashboard')): ?>
   <li class="nav-item active">
     <a class="nav-link" href="<?php echo site_url('admin/dashboard'); ?>" style="color:#fff;">
       <i class="fas fa-th-large" style="color:#f2c94c;"></i>
       <span>Inicio</span>
     </a>
   </li>
+  <?php endif; ?>
 
   <!-- Divider -->
   <hr class="sidebar-divider" style="border-color:#f2c94c;">
 
   <!-- Clientes -->
   <?php if (function_exists('can_view') && can_view($this->session->userdata('perfil'), 'customers')): ?>
+  <?php
+    // Obtener estadísticas de alertas para notificaciones
+    $CI =& get_instance();
+    $CI->load->model('customers_m');
+    $CI->load->model('payments_m');
+
+    $alerts = [
+      'high_risk' => $CI->payments_m->count_clients_by_risk('high'),
+      'medium_risk' => $CI->payments_m->count_clients_by_risk('medium'),
+      'low_risk' => $CI->payments_m->count_clients_by_risk('low'),
+      'blacklisted' => $CI->customers_m->get_blacklist_stats()->active_blocks ?? 0
+    ];
+
+    $total_alerts = $alerts['high_risk'] + $alerts['medium_risk'] + $alerts['low_risk'];
+  ?>
   <li class="nav-item">
     <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseClientes" aria-expanded="false" aria-controls="collapseClientes" style="color:#fff;">
       <i class="fas fa-users" style="color:#f2c94c;"></i>
       <span>Clientes</span>
+      <?php if ($total_alerts > 0): ?>
+        <span class="badge badge-pill badge-danger ml-2" style="font-size: 0.7em;"><?php echo $total_alerts; ?></span>
+      <?php endif; ?>
     </a>
     <div id="collapseClientes" class="collapse" aria-labelledby="headingUtilities" data-parent="#accordionSidebar">
       <div class="bg-dark py-2 collapse-inner rounded" style="background:#343a40;">
-        <a class="collapse-item" href="<?php echo site_url('admin/customers'); ?>" style="color:#ffffff;">Lista de Clientes</a>
-        <a class="collapse-item" href="<?php echo site_url('admin/customers/overdue'); ?>" style="color:#ffffff;">Pagos Vencidos</a>
+        <?php if (function_exists('can_view') && can_view($this->session->userdata('perfil'), 'customers_list')): ?>
+        <a class="collapse-item" href="<?php echo site_url('admin/customers'); ?>" style="color:#ffffff;">
+          Lista de Clientes
+          <?php if ($alerts['blacklisted'] > 0): ?>
+            <span class="badge badge-pill badge-dark ml-2" style="font-size: 0.6em;"><?php echo $alerts['blacklisted']; ?> bloqueados</span>
+          <?php endif; ?>
+        </a>
+        <?php endif; ?>
+        <?php if (function_exists('can_view') && can_view($this->session->userdata('perfil'), 'customers_overdue')): ?>
+        <a class="collapse-item" href="<?php echo site_url('admin/customers/overdue'); ?>" style="color:#ffffff;">
+          Pagos Vencidos
+          <?php if ($total_alerts > 0): ?>
+            <div class="mt-1">
+              <?php if ($alerts['high_risk'] > 0): ?>
+                <span class="badge badge-pill badge-danger mr-1" style="font-size: 0.6em;"><?php echo $alerts['high_risk']; ?> alto</span>
+              <?php endif; ?>
+              <?php if ($alerts['medium_risk'] > 0): ?>
+                <span class="badge badge-pill badge-warning mr-1" style="font-size: 0.6em;"><?php echo $alerts['medium_risk']; ?> medio</span>
+              <?php endif; ?>
+              <?php if ($alerts['low_risk'] > 0): ?>
+                <span class="badge badge-pill badge-info" style="font-size: 0.6em;"><?php echo $alerts['low_risk']; ?> bajo</span>
+              <?php endif; ?>
+            </div>
+          <?php endif; ?>
+        </a>
+        <?php endif; ?>
       </div>
     </div>
   </li>
@@ -91,9 +136,15 @@
     </a>
     <div id="collapseReportes" class="collapse" aria-labelledby="headingUtilities" data-parent="#accordionSidebar">
       <div class="bg-dark py-2 collapse-inner rounded" style="background:#343a40;">
+        <?php if (function_exists('can_view') && can_view($this->session->userdata('perfil'), 'reports_collector_commissions')): ?>
         <a class="collapse-item" href="<?php echo site_url('admin/reports'); ?>" style="color:#ffffff;">Comisiones por Cobrador</a>
-        <a class="collapse-item" href="<?php echo site_url('admin/reports/dates'); ?>" style="color:#ffffff;">Administrador</a>
-        <a class="collapse-item" href="<?php echo site_url('admin/reports/customers'); ?>" style="color:#ffffff;">General x Cliente</a>
+        <?php endif; ?>
+        <?php if (function_exists('can_view') && can_view($this->session->userdata('perfil'), 'reports_admin_commissions')): ?>
+        <a class="collapse-item" href="<?php echo site_url('admin/reports/dates'); ?>" style="color:#ffffff;">Comisiones por Administrador</a>
+        <?php endif; ?>
+        <?php if (function_exists('can_view') && can_view($this->session->userdata('perfil'), 'reports_general_customer')): ?>
+        <a class="collapse-item" href="<?php echo site_url('admin/reports/customers'); ?>" style="color:#ffffff;">Comisiones General x Cliente</a>
+        <?php endif; ?>
       </div>
     </div>
   </li>
@@ -108,8 +159,12 @@
     </a>
     <div id="collapseConfiguracion" class="collapse" aria-labelledby="headingUtilities" data-parent="#accordionSidebar">
       <div class="bg-dark py-2 collapse-inner rounded" style="background:#2c3e50;">
+        <?php if (function_exists('can_view') && can_view($this->session->userdata('perfil'), 'config_edit_data')): ?>
         <a class="collapse-item" href="<?php echo site_url('admin/config'); ?>"style="color:#ecf0f1;">Editar datos</a>
-        <a class="collapse-item" href="<?php echo site_url('admin/config/change_password'); ?>"style="color:#ecf0f1;">Cambiar Contraseña</a>
+        <?php endif; ?>
+        <?php if (function_exists('can_view') && can_view($this->session->userdata('perfil'), 'config_change_password')): ?>
+         <!-- <a class="collapse-item" href="<?php echo site_url('admin/config/change_password'); ?>"style="color:#ecf0f1;">Cambiar Contraseña</a>-->
+        <?php endif; ?>
       </div>
     </div>
   </li>
@@ -119,10 +174,13 @@
   <hr class="sidebar-divider d-none d-md-block" style="border-color:#f2c94c;">
 
   <!-- Sidebar Toggler (Sidebar) -->
+  <?php if (function_exists('can_view') && can_view($this->session->userdata('perfil'), 'sidebar_back')): ?>
   <div class="text-center d-none d-md-inline">
     <button class="rounded-circle border-0" id="sidebarToggle"></button>
   </div>
+  <?php endif; ?>
 
 </ul>
+<?php endif; ?>
 
 

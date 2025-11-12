@@ -28,20 +28,33 @@ class Reports extends MY_Controller {
     // Obtener filtros de fecha
     $start_date = $this->input->get('start_date');
     $end_date = $this->input->get('end_date');
+    $collector_id = $this->input->get('collector_id');
 
     // Validar fechas
     $validated_dates = $this->_validate_date_filters($start_date, $end_date);
 
     $data['start_date'] = $start_date;
     $data['end_date'] = $end_date;
+    $data['collector_id'] = $collector_id;
 
-    // Obtener datos de comisiones para el cobrador actual (si está logueado)
-    $current_user_id = $this->session->userdata('user_id');
-    $data['interest_commissions'] = $this->_get_interest_commissions($validated_dates, $current_user_id);
+    // REMOVER: No necesitamos datos detallados de préstamos individuales
+    // $data['loans_report'] = $this->reports_m->get_detailed_loans_report($collector_id ?: $current_user_id, $validated_dates['start'] ?? null, $validated_dates['end'] ?? null);
+
+    // Obtener datos de comisiones para TODOS los cobradores (sin filtrar por usuario actual)
+    $data['interest_commissions'] = $this->_get_interest_commissions($validated_dates, $collector_id ?: null);
     $data['total_interest_commissions'] = $this->_calculate_total_interest_commissions($data['interest_commissions']);
+
+    // DEBUG: Verificar que se está llamando correctamente
+    log_message('debug', 'Reports::index - Llamando _get_interest_commissions con collector_id: ' . ($collector_id ?: 'null'));
+    log_message('debug', 'Reports::index - Resultado interest_commissions count: ' . count($data['interest_commissions']));
 
     // Obtener lista de cobradores para mostrar resumen general
     $data['cobradores_list'] = $this->reports_m->get_cobradores_list();
+
+    // Debug: Mostrar información de depuración
+    log_message('debug', 'REPORTS INDEX - loans_report count: ' . count($data['loans_report'] ?? []));
+    log_message('debug', 'REPORTS INDEX - interest_commissions count: ' . count($data['interest_commissions'] ?? []));
+    log_message('debug', 'REPORTS INDEX - cobradores_list count: ' . count($data['cobradores_list'] ?? []));
 
     $data['subview'] = 'admin/reports/index';
     $this->load->view('admin/_main_layout', $data);
@@ -216,10 +229,10 @@ class Reports extends MY_Controller {
     $pdf->addReference('Normas APA. (2023). Manual de publicaciones de la American Psychological Association (7ª ed.).');
 
     // Crear portada mejorada con información del cliente
-    $this->_create_customer_cover_page($pdf, $customer_info, $reportCst);
+    $pdf->createCoverPage();
 
     // Agregar resumen ejecutivo después de la portada
-    $this->_create_executive_summary($pdf, $customer_info, $reportCst);
+    // $this->_create_executive_summary($pdf, $customer_info, $reportCst);
 
     // Agregar logo en la primera página de contenido
     $logoPath = FCPATH . 'assets/img/log.png';
@@ -243,7 +256,7 @@ class Reports extends MY_Controller {
         }
 
         // Crear sección para cada préstamo con mejor formato visual
-        $this->_create_loan_section($pdf, $rc, $total_pagado, $saldo_restante, $loanItems);
+        // $this->_create_loan_section($pdf, $rc, $total_pagado, $saldo_restante, $loanItems);
 
         // Crear sección de tabla de cuotas
         $pdf->createSection('Detalle de Cuotas', 2);
@@ -777,6 +790,12 @@ class Reports extends MY_Controller {
 
     $result = $this->db->get()->result();
     log_message('debug', 'Reports: Encontrados ' . count($result) . ' cobradores con pagos realizados');
+
+    // DEBUG: Verificar que se está usando LEFT JOIN correctamente
+    log_message('debug', 'Reports: _get_interest_commissions - JOIN: users u LEFT JOIN loan_items li ON li.paid_by = u.id');
+    log_message('debug', 'Reports: _get_interest_commissions - WHERE: li.status = 0 AND li.paid_by IS NOT NULL');
+    log_message('debug', 'Reports: _get_interest_commissions - GROUP BY: u.id');
+    log_message('debug', 'Reports: _get_interest_commissions - HAVING: total_payments > 0');
 
     // Agregar información detallada por cliente para TODOS los cobradores
     // Esto asegura que todos los cobradores aparezcan en la lista
@@ -1446,37 +1465,42 @@ class Reports extends MY_Controller {
    }
 
    /**
-    * API para enviar comisión del 40% (para cobradores)
+    * API para enviar comisión del 40% (para cobradores) - SIN AUTENTICACIÓN
     */
    public function send_commission()
    {
-     // Script completamente independiente - no usar CodeIgniter
-     // Headers JSON
-     header('Content-Type: application/json');
-     header('Access-Control-Allow-Origin: *');
-     header('Cache-Control: no-cache, no-store, must-revalidate');
-
-     // Obtener parámetros directamente
-     $collector_id = isset($_POST['collector_id']) ? trim($_POST['collector_id']) : null;
-     $start_date = isset($_POST['start_date']) ? trim($_POST['start_date']) : null;
-     $end_date = isset($_POST['end_date']) ? trim($_POST['end_date']) : null;
-     $selected_commissions = isset($_POST['selected_commissions']) ? trim($_POST['selected_commissions']) : null;
-
-     if (!$collector_id) {
-       echo json_encode(['success' => false, 'message' => 'ID de cobrador requerido']);
-       exit;
+     // Configurar respuesta JSON
+     $this->output->set_content_type('application/json');
+     $this->output->set_header('Access-Control-Allow-Origin: *');
+     $this->output->set_header('Cache-Control: no-cache, no-store, must-revalidate');
+     
+     // Limpiar cualquier salida previa
+     if (ob_get_level() > 0) {
+       ob_clean();
      }
 
      try {
-       // Conexión directa a MySQL
-       $host = 'localhost';
-       $user = 'root';
-       $pass = '';
-       $db = 'prestamo';
+       // Obtener parámetros directamente
+       $collector_id = isset($_POST['collector_id']) ? trim($_POST['collector_id']) : null;
+       $start_date = isset($_POST['start_date']) ? trim($_POST['start_date']) : null;
+       $end_date = isset($_POST['end_date']) ? trim($_POST['end_date']) : null;
+       $selected_commissions = isset($_POST['selected_commissions']) ? trim($_POST['selected_commissions']) : null;
 
-       $conn = new mysqli($host, $user, $pass, $db);
-       if ($conn->connect_error) {
-         throw new Exception('Error de conexión: ' . $conn->connect_error);
+       if (!$collector_id) {
+         $this->output->set_output(json_encode(['success' => false, 'message' => 'ID de cobrador requerido']));
+         return;
+       }
+
+       // Usar CodeIgniter database
+       $this->load->database();
+       
+       // Asegurar que las columnas necesarias existan
+       $this->_ensure_commission_columns($this->db);
+       
+       // Obtener conexión mysqli para operaciones específicas
+       $conn = $this->db->conn_id;
+       if (!$conn) {
+         throw new Exception('No se pudo obtener la conexión a la base de datos');
        }
 
        // Validar fechas
@@ -1498,11 +1522,45 @@ class Reports extends MY_Controller {
        if ($selected_commissions) {
          $selected_data = json_decode($selected_commissions, true);
 
+         if (json_last_error() !== JSON_ERROR_NONE) {
+           $this->output->set_output(json_encode(['success' => false, 'message' => 'Datos de comisiones seleccionadas inválidos']));
+           return;
+         }
+
          foreach ($selected_data as $commission) {
+           // Obtener información del cliente y préstamo
+           $loan_id = isset($commission['loan_id']) ? (int)$commission['loan_id'] : null;
+           $client_id = isset($commission['client_id']) ? (int)$commission['client_id'] : null;
+           $interest = isset($commission['interest']) ? (float)$commission['interest'] : 0;
+           $commission_amount = isset($commission['commission']) ? (float)$commission['commission'] : 0;
+           
+           if (!$loan_id || $commission_amount <= 0) {
+             continue; // Saltar si faltan datos esenciales
+           }
+           
+           // Obtener información del cliente desde la base de datos
+           $sql_client = "SELECT c.id as customer_id, CONCAT(c.first_name, ' ', c.last_name) as client_name, c.dni as client_cedula
+                         FROM loans l
+                         JOIN customers c ON c.id = l.customer_id
+                         WHERE l.id = ?";
+           $stmt_client = $conn->prepare($sql_client);
+           $stmt_client->bind_param('i', $loan_id);
+           $stmt_client->execute();
+           $result_client = $stmt_client->get_result();
+           $client_info = $result_client->fetch_assoc();
+           
+           if (!$client_info) {
+             continue; // Saltar si no se encuentra el cliente
+           }
+           
            // Verificar si ya existe registro para esta combinación específica
-           $sql_check = "SELECT id FROM collector_commissions WHERE user_id = ? AND loan_id = ? AND client_id = ?";
+           $sql_check = "SELECT id FROM collector_commissions 
+                         WHERE user_id = ? AND loan_id = ? 
+                         AND period_start = ? AND period_end = ?";
            $stmt_check = $conn->prepare($sql_check);
-           $stmt_check->bind_param('iii', $collector_id, $commission['loan_id'], $commission['client_id']);
+           $period_start = $validated_dates ? $validated_dates['start'] : null;
+           $period_end = $validated_dates ? $validated_dates['end'] : null;
+           $stmt_check->bind_param('iiss', $collector_id, $loan_id, $period_start, $period_end);
            $stmt_check->execute();
            $result_check = $stmt_check->get_result();
 
@@ -1510,31 +1568,29 @@ class Reports extends MY_Controller {
              // Actualizar registro existente
              $row = $result_check->fetch_assoc();
              $sql_update = "UPDATE collector_commissions SET
-                           total_interest = ?,
-                           commission_40 = ?,
+                           amount = ?,
+                           commission = ?,
                            status = 'enviado',
                            sent_at = NOW(),
-                           period_start = ?,
-                           period_end = ?
+                           client_name = ?,
+                           client_cedula = ?
                            WHERE id = ?";
              $stmt_update = $conn->prepare($sql_update);
-             $period_start = $validated_dates ? $validated_dates['start'] : null;
-             $period_end = $validated_dates ? $validated_dates['end'] : null;
-             $stmt_update->bind_param('ddssi', $commission['interest'], $commission['commission'], $period_start, $period_end, $row['id']);
+             $total_amount = $interest + ($interest * 0.6); // Interés + capital aproximado
+             $stmt_update->bind_param('ddssi', $total_amount, $commission_amount, $client_info['client_name'], $client_info['client_cedula'], $row['id']);
              $stmt_update->execute();
            } else {
              // Crear nuevo registro específico
              $sql_insert = "INSERT INTO collector_commissions
-                           (user_id, loan_id, client_id, total_interest, commission_40, status, sent_at, period_start, period_end)
-                           VALUES (?, ?, ?, ?, ?, 'enviado', NOW(), ?, ?)";
+                           (user_id, loan_id, client_name, client_cedula, amount, commission, status, sent_at, period_start, period_end)
+                           VALUES (?, ?, ?, ?, ?, ?, 'enviado', NOW(), ?, ?)";
              $stmt_insert = $conn->prepare($sql_insert);
-             $period_start = $validated_dates ? $validated_dates['start'] : null;
-             $period_end = $validated_dates ? $validated_dates['end'] : null;
-             $stmt_insert->bind_param('iiiddss', $collector_id, $commission['loan_id'], $commission['client_id'], $commission['interest'], $commission['commission'], $period_start, $period_end);
+             $total_amount = $interest + ($interest * 0.6); // Interés + capital aproximado
+             $stmt_insert->bind_param('iissddss', $collector_id, $loan_id, $client_info['client_name'], $client_info['client_cedula'], $total_amount, $commission_amount, $period_start, $period_end);
              $stmt_insert->execute();
            }
 
-           $total_commission += $commission['commission'];
+           $total_commission += $commission_amount;
          }
        } else {
          // Lógica anterior para envío general (sin selección específica)
@@ -1560,12 +1616,14 @@ class Reports extends MY_Controller {
          $total_commission = $totals['total_commission'];
 
          if ($total_commission <= 0) {
-           echo json_encode(['success' => false, 'message' => 'No hay comisiones pendientes para enviar']);
-           exit;
+           $this->output->set_output(json_encode(['success' => false, 'message' => 'No hay comisiones pendientes para enviar']));
+           return;
          }
 
-         // Verificar si ya existe un registro pendiente para este período
-         $sql_check_period = "SELECT id FROM collector_commissions WHERE user_id = ? AND period_start = ? AND period_end = ? AND status = 'pendiente'";
+         // Verificar si ya existe un registro para este período
+         $sql_check_period = "SELECT id, SUM(commission) as total_comm FROM collector_commissions 
+                              WHERE user_id = ? AND period_start = ? AND period_end = ? 
+                              GROUP BY user_id, period_start, period_end";
          $stmt_check_period = $conn->prepare($sql_check_period);
          $period_start = $validated_dates ? $validated_dates['start'] : null;
          $period_end = $validated_dates ? $validated_dates['end'] : null;
@@ -1574,175 +1632,373 @@ class Reports extends MY_Controller {
          $result_check_period = $stmt_check_period->get_result();
 
          if ($result_check_period->num_rows > 0) {
-           // Actualizar registro existente
-           $row = $result_check_period->fetch_assoc();
+           // Actualizar todos los registros del período a enviado
            $sql_update_period = "UPDATE collector_commissions SET
-                               total_interest = ?,
-                               commission_40 = ?,
                                status = 'enviado',
                                sent_at = NOW()
-                               WHERE id = ?";
+                               WHERE user_id = ? AND period_start = ? AND period_end = ? AND status = 'pendiente'";
            $stmt_update_period = $conn->prepare($sql_update_period);
-           $stmt_update_period->bind_param('ddi', $total_interest, $total_commission, $row['id']);
+           $stmt_update_period->bind_param('iss', $collector_id, $period_start, $period_end);
            $stmt_update_period->execute();
          } else {
-           // Crear nuevo registro
-           $sql_insert_period = "INSERT INTO collector_commissions
-                               (user_id, total_interest, commission_40, status, sent_at, period_start, period_end)
-                               VALUES (?, ?, ?, 'enviado', NOW(), ?, ?)";
-           $stmt_insert_period = $conn->prepare($sql_insert_period);
-           $stmt_insert_period->bind_param('iddss', $collector_id, $total_interest, $total_commission, $period_start, $period_end);
-           $stmt_insert_period->execute();
+           // Crear registro agregado para el período completo
+           // Obtener todos los loan_items del período para crear registros individuales
+           $where_date = '';
+           if ($validated_dates) {
+             $where_date = " AND li.pay_date >= '{$validated_dates['start']} 00:00:00' AND li.pay_date <= '{$validated_dates['end']} 23:59:59'";
+           }
+           
+           $sql_items = "SELECT li.id as loan_item_id, li.loan_id, li.interest_paid, 
+                         CONCAT(c.first_name, ' ', c.last_name) as client_name, c.dni as client_cedula
+                         FROM loan_items li
+                         JOIN loans l ON l.id = li.loan_id
+                         JOIN customers c ON c.id = l.customer_id
+                         WHERE li.paid_by = ? AND li.status = 0 AND li.interest_paid > 0{$where_date}";
+           $stmt_items = $conn->prepare($sql_items);
+           $stmt_items->bind_param('i', $collector_id);
+           $stmt_items->execute();
+           $result_items = $stmt_items->get_result();
+           
+           while ($item = $result_items->fetch_assoc()) {
+             $item_commission = $item['interest_paid'] * 0.4;
+             $item_amount = $item['interest_paid'] + ($item['interest_paid'] * 0.6);
+             
+             $sql_insert_item = "INSERT INTO collector_commissions
+                               (user_id, loan_id, loan_item_id, client_name, client_cedula, amount, commission, status, sent_at, period_start, period_end)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, 'enviado', NOW(), ?, ?)";
+             $stmt_insert_item = $conn->prepare($sql_insert_item);
+             $stmt_insert_item->bind_param('iiissddss', $collector_id, $item['loan_id'], $item['loan_item_id'], 
+                                           $item['client_name'], $item['client_cedula'], $item_amount, $item_commission,
+                                           $period_start, $period_end);
+             $stmt_insert_item->execute();
+           }
          }
        }
 
-       $conn->close();
-
-       echo json_encode([
+       // Asegurar que la respuesta JSON sea válida
+       $response = [
          'success' => true,
          'message' => 'Comisión enviada exitosamente al administrador',
-         'commission_amount' => $total_commission
-       ]);
+         'commission_amount' => $total_commission,
+         'processed_count' => isset($selected_data) ? count($selected_data) : 0
+       ];
+
+       $this->output->set_output(json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+       return;
 
      } catch (Exception $e) {
-       echo json_encode(['success' => false, 'message' => 'Error interno del servidor: ' . $e->getMessage()]);
+       // Asegurar que siempre se devuelva JSON válido
+       $error_response = [
+         'success' => false, 
+         'message' => 'Error interno del servidor: ' . $e->getMessage()
+       ];
+       $this->output->set_output(json_encode($error_response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+       return;
      }
-
-     exit;
    }
 
+
+   /**
+    * API para obtener detalles de préstamos enviados por cobrador
+    */
+   public function get_sent_commissions_details()
+   {
+     $this->output->set_content_type('application/json');
+     $this->output->set_header('Access-Control-Allow-Origin: *');
+     $this->output->set_header('Cache-Control: no-cache, no-store, must-revalidate');
+
+     try {
+       $user_id = $this->input->get('user_id');
+       $loan_id = $this->input->get('loan_id');
+       $commission_id = $this->input->get('commission_id');
+       $start_date = $this->input->get('start_date');
+       $end_date = $this->input->get('end_date');
+
+      // Si se proporciona loan_id o commission_id, buscar ese préstamo específico
+      if (!empty($loan_id) || !empty($commission_id)) {
+        $loan_id = $loan_id !== null ? (int) $loan_id : null;
+        $commission_id = $commission_id !== null ? (int) $commission_id : null;
+        $user_id_int = $user_id !== null ? (int) $user_id : null;
+
+        $sql = "
+          SELECT 
+            cc.id AS commission_id,
+            cc.user_id,
+            cc.loan_id,
+            cc.client_name,
+            cc.client_cedula,
+            cc.amount,
+            cc.commission,
+            cc.status,
+            cc.sent_at,
+            cc.period_start,
+            cc.period_end,
+            l.credit_amount,
+            l.num_fee,
+            c.id AS customer_id,
+            c.phone_fixed,
+            c.address
+          FROM collector_commissions cc
+          LEFT JOIN loans l ON l.id = cc.loan_id
+          LEFT JOIN customers c ON c.id = l.customer_id
+          WHERE cc.status = 'enviado'
+        ";
+
+        $params = [];
+        if (!empty($commission_id)) {
+          $sql .= " AND cc.id = ?";
+          $params[] = $commission_id;
+        }
+        if (!empty($loan_id)) {
+          $sql .= " AND cc.loan_id = ?";
+          $params[] = $loan_id;
+        }
+        if (!empty($user_id_int)) {
+          $sql .= " AND cc.user_id = ?";
+          $params[] = $user_id_int;
+        }
+
+        $sql .= " ORDER BY cc.sent_at DESC LIMIT 1";
+
+        $query = $this->db->query($sql, $params);
+        if (!$query) {
+          $db_error = $this->db->error();
+          log_message(
+            'error',
+            'Reports::get_sent_commissions_details - Error al consultar comisión (loan_id: '
+            . ($loan_id ?? 'null') . ', commission_id: ' . ($commission_id ?? 'null') . ', user_id: ' . ($user_id_int ?? 'null')
+            . ') DB Error: ' . json_encode($db_error) . ' SQL: ' . $sql . ' Params: ' . json_encode($params)
+          );
+          throw new Exception('Error al consultar la comisión del préstamo');
+        }
+
+        if ($query->num_rows() === 0) {
+          $this->output->set_output(json_encode(['error' => 'Préstamo no encontrado']));
+          return;
+        }
+
+        $commission = $query->row();
+
+        // Obtener información adicional de pagos
+        $commission->payments_made = 0;
+        $commission->total_interest_paid = floatval($commission->amount ?? 0);
+
+        if (!empty($commission->loan_id)) {
+          $payments_sql = "
+            SELECT COUNT(*) AS payments_made, SUM(interest_paid) AS total_interest_paid
+            FROM loan_items
+            WHERE loan_id = ? AND status = 0
+          ";
+          $payments_params = [$commission->loan_id];
+
+          if (!empty($user_id_int)) {
+            $payments_sql .= " AND paid_by = ?";
+            $payments_params[] = $user_id_int;
+          }
+
+          $payments_query = $this->db->query($payments_sql, $payments_params);
+          if ($payments_query) {
+            if ($payments_query->num_rows() > 0) {
+            $payments_info = $payments_query->row();
+            $commission->payments_made = (int) ($payments_info->payments_made ?? 0);
+            if (!empty($payments_info->total_interest_paid)) {
+              $commission->total_interest_paid = floatval($payments_info->total_interest_paid);
+            }
+            }
+          } else {
+            $db_error = $this->db->error();
+            log_message(
+              'error',
+              'Reports::get_sent_commissions_details - Error al consultar loan_items (loan_id: '
+              . $commission->loan_id . ', user_id: ' . ($user_id_int ?? 'null') . ') DB Error: ' . json_encode($db_error)
+            );
+          }
+        }
+
+        $this->output->set_output(json_encode([
+          'commissions' => [$commission],
+          'total_commission' => floatval($commission->commission ?? 0),
+          'total_interest' => floatval($commission->total_interest_paid ?? 0),
+          'count' => 1
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        return;
+      }
+
+       if (!$user_id) {
+         $this->output->set_output(json_encode(['error' => 'ID de cobrador requerido']));
+         return;
+       }
+
+       // Validar fechas
+       $validated_dates = $this->_validate_date_filters($start_date, $end_date);
+
+       // Obtener comisiones enviadas desde collector_commissions
+       $this->db->select('
+         cc.id as commission_id,
+         cc.loan_id,
+         cc.client_name,
+         cc.client_cedula,
+         cc.amount,
+         cc.commission,
+         cc.status,
+         cc.sent_at,
+         cc.period_start,
+        cc.period_end,
+        l.credit_amount,
+        l.num_fee,
+         c.id as customer_id,
+         c.phone_fixed,
+         c.address
+       ');
+       $this->db->from('collector_commissions cc');
+       $this->db->join('loans l', 'l.id = cc.loan_id', 'left');
+       $this->db->join('customers c', 'c.id = l.customer_id', 'left');
+       $this->db->where('cc.user_id', $user_id);
+       $this->db->where('cc.status', 'enviado');
+       
+       // Aplicar filtros de fecha de forma más flexible
+       if ($validated_dates && isset($validated_dates['start']) && isset($validated_dates['end'])) {
+         $this->db->group_start();
+         $this->db->where('cc.period_start <=', $validated_dates['end']);
+         $this->db->where('cc.period_end >=', $validated_dates['start']);
+         $this->db->group_end();
+       } elseif ($validated_dates && isset($validated_dates['start'])) {
+         $this->db->where('cc.period_end >=', $validated_dates['start']);
+       } elseif ($validated_dates && isset($validated_dates['end'])) {
+         $this->db->where('cc.period_start <=', $validated_dates['end']);
+       }
+       
+       $this->db->order_by('cc.sent_at', 'DESC');
+       
+       $commissions = $this->db->get()->result();
+       
+       // Obtener información adicional de pagos para cada préstamo
+       foreach ($commissions as &$comm) {
+         if (!$comm->loan_id) {
+           $comm->payments_made = 0;
+           $comm->total_interest_paid = floatval($comm->amount ?? 0);
+           continue;
+         }
+         
+         $this->db->select('COUNT(*) as payments_made, SUM(interest_paid) as total_interest_paid');
+         $this->db->from('loan_items');
+         $this->db->where('loan_id', $comm->loan_id);
+         $this->db->where('paid_by', $user_id);
+         $this->db->where('status', 0);
+         $payments_info = $this->db->get()->row();
+         
+         $comm->payments_made = intval($payments_info->payments_made ?? 0);
+         $comm->total_interest_paid = floatval($payments_info->total_interest_paid ?? ($comm->amount ?? 0));
+       }
+       
+       // Calcular totales
+       $total_commission = 0;
+       $total_interest = 0;
+       foreach ($commissions as $comm) {
+         $total_commission += floatval($comm->commission ?? 0);
+         $total_interest += floatval($comm->total_interest_paid ?? 0);
+       }
+
+       $this->output->set_output(json_encode([
+         'commissions' => $commissions,
+         'total_commission' => $total_commission,
+         'total_interest' => $total_interest,
+         'count' => count($commissions)
+       ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+    } catch (Exception $e) {
+      log_message('error', 'Reports::get_sent_commissions_details - Exception: ' . $e->getMessage());
+      $this->output->set_output(json_encode(['error' => 'Error interno del servidor: ' . $e->getMessage()]));
+     }
+   }
 
    /**
     * API para obtener detalles de intereses por cobrador (acceso público)
     */
    public function get_user_interest_details()
    {
-     // COMPLETAMENTE INDEPENDIENTE - NO USAR CODEIGNITER
-     // Detener cualquier procesamiento de CI
-     if (function_exists('get_instance')) {
-       $CI =& get_instance();
-       if (isset($CI->output)) {
-         $CI->output->_display();
-         exit;
-       }
-     }
+     // Acceso público habilitado - Sin restricciones de rol
 
-     // Limpiar buffers
-     while (ob_get_level()) {
-       ob_end_clean();
-     }
-
-     // Headers JSON estrictos
-     header('Content-Type: application/json; charset=utf-8');
-     header('Access-Control-Allow-Origin: *');
-     header('Cache-Control: no-cache, no-store, must-revalidate');
-     header('X-Content-Type-Options: nosniff');
+     // Configurar headers JSON antes de cualquier salida
+     $this->output->set_content_type('application/json');
+     $this->output->set_header('Access-Control-Allow-Origin: *');
+     $this->output->set_header('Cache-Control: no-cache, no-store, must-revalidate');
 
      try {
-       // Obtener parámetros directamente
-       $user_id = isset($_GET['user_id']) ? trim($_GET['user_id']) : null;
-       $start_date = isset($_GET['start_date']) ? trim($_GET['start_date']) : null;
-       $end_date = isset($_GET['end_date']) ? trim($_GET['end_date']) : null;
+       // Obtener parámetros usando CodeIgniter
+       $user_id = $this->input->get('user_id');
+       $start_date = $this->input->get('start_date');
+       $end_date = $this->input->get('end_date');
 
        if (!$user_id) {
-         echo json_encode(['error' => 'ID de cobrador requerido'], JSON_UNESCAPED_UNICODE);
-         exit;
+         $this->output->set_output(json_encode(['error' => 'ID de cobrador requerido']));
+         return;
        }
-
-       // Conexión directa a MySQL
-       $host = 'localhost';
-       $user = 'root';
-       $pass = '';
-       $db = 'prestamo';
-
-       $conn = new mysqli($host, $user, $pass, $db);
-       if ($conn->connect_error) {
-         throw new Exception('Error de conexión: ' . $conn->connect_error);
-       }
-
-       $conn->set_charset('utf8mb4');
 
        // Validar fechas
-       $validated_dates = null;
-       if ($start_date && $end_date) {
-         $start_timestamp = strtotime($start_date);
-         $end_timestamp = strtotime($end_date);
-         if ($start_timestamp && $end_timestamp && $start_timestamp <= $end_timestamp) {
-           $validated_dates = [
-             'start' => date('Y-m-d', $start_timestamp),
-             'end' => date('Y-m-d', $end_timestamp)
-           ];
-         }
-       }
+       $validated_dates = $this->_validate_date_filters($start_date, $end_date);
 
        // Obtener detalles de intereses por cliente
-       $clients = [];
-       $where_date = '';
-       if ($validated_dates) {
-         $where_date = " AND li.pay_date >= '{$validated_dates['start']} 00:00:00' AND li.pay_date <= '{$validated_dates['end']} 23:59:59'";
-       }
+       $clients = $this->_get_user_client_interest_details($user_id, $validated_dates);
 
-       $sql = "SELECT
-         c.id as customer_id,
-         CONCAT(c.first_name, ' ', c.last_name) as customer_name,
-         c.dni,
-         l.id as loan_id,
-         l.credit_amount,
-         COUNT(li.id) as payments_made,
-         COALESCE(SUM(li.interest_paid), 0) as total_interest_paid,
-         COALESCE(SUM(li.interest_paid), 0) * 0.4 as interest_commission_40,
-         SUM(li.fee_amount) as total_collected,
-         MAX(li.pay_date) as last_payment_date
-       FROM customers c
-       LEFT JOIN loans l ON l.customer_id = c.id
-       LEFT JOIN loan_items li ON li.loan_id = l.id AND li.paid_by = ? AND li.status = 0{$where_date}
-       WHERE li.id IS NOT NULL
-       GROUP BY c.id, l.id
-       HAVING total_interest_paid > 0
-       ORDER BY total_interest_paid DESC";
-
-       $stmt = $conn->prepare($sql);
-       if (!$stmt) {
-         throw new Exception('Error preparando consulta: ' . $conn->error);
-       }
-
-       $stmt->bind_param('i', $user_id);
-       $stmt->execute();
-       $result = $stmt->get_result();
-
-       while ($row = $result->fetch_object()) {
-         $clients[] = $row;
-       }
-       $stmt->close();
-
-       // Calcular totales
+       // Calcular totales y verificar estado de envío
        $total_interest = 0;
        $total_commission = 0;
+       $all_sent = true;
+       $any_sent = false;
+       
        foreach ($clients as $client) {
          $total_interest += $client->total_interest_paid ?? 0;
          $total_commission += $client->interest_commission_40 ?? 0;
-       }
-
-       // Verificar estado de envío de comisión
-       $send_status = 'pendiente';
-       $where_date_commission = '';
-       if ($validated_dates) {
-         $where_date_commission = " AND created_at >= '{$validated_dates['start']} 00:00:00' AND created_at <= '{$validated_dates['end']} 23:59:59'";
-       }
-
-       $sql_commission = "SELECT status FROM collector_commissions WHERE user_id = ?{$where_date_commission} ORDER BY created_at DESC LIMIT 1";
-       $stmt_commission = $conn->prepare($sql_commission);
-       if ($stmt_commission) {
-         $stmt_commission->bind_param('i', $user_id);
-         $stmt_commission->execute();
-         $result_commission = $stmt_commission->get_result();
-         if ($row_commission = $result_commission->fetch_object()) {
-           $send_status = $row_commission->status ?? 'pendiente';
+         
+         // Consultar estado de envío para este cliente/préstamo
+         $period_start = !empty($validated_dates) && isset($validated_dates['start']) ? $validated_dates['start'] : null;
+         $period_end = !empty($validated_dates) && isset($validated_dates['end']) ? $validated_dates['end'] : null;
+         
+         $client->send_status = 'pendiente';
+         $client->sent_at = null;
+         
+         try {
+           // Verificar si la columna status existe
+           $column_check = $this->db->query("SHOW COLUMNS FROM collector_commissions LIKE 'status'");
+           if ($column_check->num_rows() > 0) {
+             $this->db->select('status, MAX(sent_at) as sent_at');
+             $this->db->from('collector_commissions');
+         $this->db->where('user_id', $user_id);
+             $this->db->where('loan_id', $client->loan_id);
+             if ($period_start) {
+               $this->db->where('period_start', $period_start);
+             }
+             if ($period_end) {
+               $this->db->where('period_end', $period_end);
+             }
+             $this->db->group_by('status');
+             $this->db->order_by('sent_at', 'DESC');
+         $this->db->limit(1);
+             $status_query = $this->db->get();
+             
+             if ($status_query->num_rows() > 0) {
+               $status_row = $status_query->row();
+               if ($status_row->status == 'enviado') {
+                 $client->send_status = 'enviado';
+                 $client->sent_at = $status_row->sent_at;
+                 $any_sent = true;
+               } else {
+                 $all_sent = false;
+               }
+             } else {
+               $all_sent = false;
+             }
+           }
+         } catch (Exception $e) {
+           // Si hay error (columna no existe), mantener como pendiente
+           log_message('debug', 'Error consultando estado de comisiones: ' . $e->getMessage());
+           $all_sent = false;
          }
-         $stmt_commission->close();
        }
 
-       $conn->close();
+       // Determinar estado general
+       $send_status = $all_sent ? 'enviado' : ($any_sent ? 'parcial' : 'pendiente');
 
        // Respuesta JSON
        $response_data = [
@@ -1752,18 +2008,17 @@ class Reports extends MY_Controller {
          'send_status' => $send_status
        ];
 
-       echo json_encode($response_data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+       $this->output->set_output(json_encode($response_data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
      } catch (Exception $e) {
-       $error_data = ['error' => 'Error interno del servidor: ' . $e->getMessage()];
-       echo json_encode($error_data, JSON_UNESCAPED_UNICODE);
+       log_message('error', 'Reports::get_user_interest_details - Exception: ' . $e->getMessage());
+       $this->output->set_output(json_encode(['error' => 'Error interno del servidor: ' . $e->getMessage()]));
      }
-
-     exit;
    }
 
    /**
     * API para obtener resumen de comisiones de cobradores (acceso público)
+    * Ahora devuelve cada préstamo como una fila separada
     */
    public function get_collector_commissions_summary()
    {
@@ -1777,20 +2032,123 @@ class Reports extends MY_Controller {
        // Validar fechas
        $validated_dates = $this->_validate_date_filters($start_date, $end_date);
 
-       // Obtener resumen de comisiones
-       $summary = $this->_get_collector_commissions_summary($validated_dates, $collector_id);
+       // Obtener préstamos enviados individualmente (no agrupados)
+       $sql = "
+         SELECT 
+           cc.id as commission_id,
+           cc.user_id as collector_id,
+           u.first_name,
+           u.last_name,
+           cc.loan_id,
+           cc.client_name,
+           cc.client_cedula,
+           cc.commission as commission_40,
+           cc.amount as total_interest,
+           cc.sent_at,
+           l.credit_amount,
+           l.num_fee
+         FROM collector_commissions cc
+         INNER JOIN users u ON u.id = cc.user_id
+         LEFT JOIN loans l ON l.id = cc.loan_id
+         WHERE cc.status = 'enviado'
+       ";
+       
+       // Aplicar filtros de fecha
+       if (!empty($validated_dates) && isset($validated_dates['start']) && isset($validated_dates['end'])) {
+         $sql .= " AND (
+           (cc.period_start <= '" . $this->db->escape_str($validated_dates['end']) . "' AND cc.period_end >= '" . $this->db->escape_str($validated_dates['start']) . "')
+           OR cc.period_start IS NULL 
+           OR cc.period_end IS NULL
+         )";
+       } elseif (!empty($validated_dates) && isset($validated_dates['start'])) {
+         $sql .= " AND (cc.period_end >= '" . $this->db->escape_str($validated_dates['start']) . "' OR cc.period_end IS NULL)";
+       } elseif (!empty($validated_dates) && isset($validated_dates['end'])) {
+         $sql .= " AND (cc.period_start <= '" . $this->db->escape_str($validated_dates['end']) . "' OR cc.period_start IS NULL)";
+       }
+
+       // Filtrar por cobrador específico si se proporciona
+       if ($collector_id) {
+         $sql .= " AND cc.user_id = " . (int)$collector_id;
+       }
+
+       $sql .= " ORDER BY cc.sent_at DESC, u.first_name, u.last_name, cc.loan_id";
+
+       $query = $this->db->query($sql);
+       $results = $query->result();
+       
+       // Procesar resultados
+       $loans = [];
+       foreach ($results as $result) {
+         $loan = new stdClass();
+         $loan->commission_id = $result->commission_id;
+         $loan->collector_id = $result->collector_id;
+         $loan->collector_name = trim($result->first_name . ' ' . $result->last_name);
+         $loan->loan_id = $result->loan_id;
+         $loan->client_name = $result->client_name;
+         $loan->client_cedula = $result->client_cedula;
+         $loan->commission_40 = floatval($result->commission_40 ?? 0);
+         $loan->total_interest = floatval($result->total_interest ?? 0);
+         $loan->sent_at = $result->sent_at;
+         $loan->credit_amount = floatval($result->credit_amount ?? 0);
+         $loan->num_fee = $result->num_fee ?? 0;
+         $loan->send_status = 'enviado';
+         
+         // Formatear montos
+         $loan->total_interest_formatted = '$' . number_format($loan->total_interest, 0, ',', '.');
+         $loan->commission_40_formatted = '$' . number_format($loan->commission_40, 0, ',', '.');
+         
+         // Badge de estado
+         $loan->status_badge = '<span class="badge badge-success">Enviado</span>';
+         if ($loan->sent_at) {
+           $loan->status_badge .= '<br><small class="text-muted">' . date('d/m/Y H:i', strtotime($loan->sent_at)) . '</small>';
+         }
+         
+         $loans[] = $loan;
+       }
+       
+       // Calcular totales
+       $total_to_pay = 0;
+       $total_interest_sum = 0;
+       foreach ($loans as $loan) {
+         $total_to_pay += $loan->commission_40;
+         $total_interest_sum += $loan->total_interest;
+       }
+       
+       // Agrupar por cobrador para el resumen
+       $collectors_summary = [];
+       foreach ($loans as $loan) {
+         if (!isset($collectors_summary[$loan->collector_id])) {
+           $collectors_summary[$loan->collector_id] = [
+             'collector_id' => $loan->collector_id,
+             'collector_name' => $loan->collector_name,
+             'total_interest' => 0,
+             'commission_40' => 0,
+             'loans_count' => 0
+           ];
+         }
+         $collectors_summary[$loan->collector_id]['total_interest'] += $loan->total_interest;
+         $collectors_summary[$loan->collector_id]['commission_40'] += $loan->commission_40;
+         $collectors_summary[$loan->collector_id]['loans_count']++;
+       }
+       
+       // Log para debugging
+       log_message('debug', 'Reports::get_collector_commissions_summary - Total préstamos enviados: ' . count($loans));
 
        $this->output->set_content_type('application/json');
        $this->output->set_header('Access-Control-Allow-Origin: *');
+       
        echo json_encode([
-         'collectors' => $summary,
+         'loans' => $loans, // Cada préstamo como fila separada
+         'collectors' => array_values($collectors_summary), // Resumen por cobrador
          'summary' => [
-           'total_collectors' => count($summary),
-           'completed_sends' => count(array_filter($summary, function($c) { return $c->send_status == 'enviado'; })),
-           'pending_sends' => count(array_filter($summary, function($c) { return $c->send_status != 'enviado'; })),
-           'total_to_pay' => array_sum(array_column($summary, 'commission_40'))
+           'total_loans' => count($loans),
+           'total_collectors' => count($collectors_summary),
+           'completed_sends' => count($loans),
+           'pending_sends' => 0,
+           'total_to_pay' => $total_to_pay,
+           'total_interest' => $total_interest_sum
          ]
-       ]);
+       ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
      } catch (Exception $e) {
        log_message('error', 'Reports::get_collector_commissions_summary - Exception: ' . $e->getMessage());
@@ -1801,65 +2159,494 @@ class Reports extends MY_Controller {
    }
 
    /**
+    * Enviar reporte de comisiones al administrador
+    */
+   public function send_report()
+   {
+       // Configurar headers JSON
+       $this->output->set_content_type('application/json');
+       $this->output->set_header('Access-Control-Allow-Origin: *');
+
+       // Solo permitir POST
+       if ($this->input->method() !== 'post') {
+           log_message('error', 'REPORTS: Método no permitido - método usado: ' . $this->input->method());
+           $this->output->set_output(json_encode(['success' => false, 'message' => 'Método no permitido']));
+           return;
+       }
+
+       // Verificar que el usuario esté logueado
+       $current_user_id = $this->session->userdata('user_id');
+       if (!$current_user_id) {
+           log_message('error', 'REPORTS: Usuario no autenticado - session data: ' . json_encode($this->session->all_userdata()));
+           $this->output->set_output(json_encode(['success' => false, 'message' => 'Usuario no autenticado']));
+           return;
+       }
+
+       log_message('debug', 'REPORTS: Iniciando envío de reporte - user_id: ' . $current_user_id);
+
+       try {
+           // Obtener datos del POST
+           $selected_loans_json = $this->input->post('selected_loans');
+           $total_commission = $this->input->post('total_commission');
+           $start_date = $this->input->post('start_date');
+           $end_date = $this->input->post('end_date');
+           $collector_id = $this->input->post('collector_id');
+
+           log_message('debug', 'REPORTS: Datos POST recibidos - selected_loans_json: ' . ($selected_loans_json ? 'presente' : 'null') .
+                      ', total_commission: ' . $total_commission .
+                      ', start_date: ' . $start_date .
+                      ', end_date: ' . $end_date .
+                      ', collector_id: ' . $collector_id);
+
+           if (!$selected_loans_json) {
+               log_message('error', 'REPORTS: No se seleccionaron préstamos');
+               $this->output->set_output(json_encode(['success' => false, 'message' => 'No se seleccionaron préstamos']));
+               return;
+           }
+
+           $selected_loans = json_decode($selected_loans_json, true);
+           if (json_last_error() !== JSON_ERROR_NONE) {
+               log_message('error', 'REPORTS: Error decodificando JSON - error: ' . json_last_error_msg() . ', json: ' . $selected_loans_json);
+               $this->output->set_output(json_encode(['success' => false, 'message' => 'Datos de préstamos inválidos - error JSON']));
+               return;
+           }
+
+           if (empty($selected_loans)) {
+               log_message('error', 'REPORTS: Array de préstamos vacío');
+               $this->output->set_output(json_encode(['success' => false, 'message' => 'No hay préstamos válidos para enviar']));
+               return;
+           }
+
+           log_message('debug', 'REPORTS: Préstamos decodificados correctamente - count: ' . count($selected_loans));
+
+           // Obtener información del cobrador actual
+           $collector_info = $this->user_m->get($current_user_id);
+           $collector_name = $collector_info ? $collector_info->first_name . ' ' . $collector_info->last_name : 'Usuario desconocido';
+
+           log_message('debug', 'REPORTS: Información del cobrador obtenida - name: ' . $collector_name);
+
+           // Preparar datos para el reporte
+           $report_data = [
+               'collector_id' => $current_user_id,
+               'collector_name' => $collector_name,
+               'selected_loans' => $selected_loans,
+               'total_commission' => $total_commission,
+               'start_date' => $start_date,
+               'end_date' => $end_date,
+               'sent_at' => date('Y-m-d H:i:s'),
+               'loan_count' => count($selected_loans)
+           ];
+
+           log_message('debug', 'REPORTS: Datos del reporte preparados - ' . json_encode($report_data));
+
+           // Intentar enviar notificación por email al administrador
+           try {
+               $this->_send_report_notification($report_data);
+               log_message('info', 'REPORTS: Notificación por email enviada exitosamente');
+           } catch (Exception $email_error) {
+               log_message('error', 'REPORTS: Error enviando email: ' . $email_error->getMessage());
+               // No fallar por error de email, continuar con el proceso
+           }
+
+           // Crear notificación interna - FORZAR creación incluso si hay errores
+           $notification_created = false;
+           try {
+               $this->_create_internal_notification($report_data);
+               log_message('info', 'REPORTS: Notificación interna creada exitosamente');
+               $notification_created = true;
+           } catch (Exception $notification_error) {
+               log_message('error', 'REPORTS: Error creando notificación interna: ' . $notification_error->getMessage());
+               // Intentar crear notificación básica si falla la detallada
+               try {
+                   $this->_create_basic_notification($report_data);
+                   log_message('info', 'REPORTS: Notificación básica creada exitosamente');
+                   $notification_created = true;
+               } catch (Exception $basic_error) {
+                   log_message('error', 'REPORTS: Error creando notificación básica: ' . $basic_error->getMessage());
+               }
+           }
+
+           // Si no se pudo crear notificación interna, al menos loggear que el reporte fue enviado
+           if (!$notification_created) {
+               log_message('warning', 'REPORTS: No se pudo crear notificación interna, pero el reporte fue procesado correctamente');
+           }
+
+           // Log del envío exitoso
+           log_message('info', 'REPORTS: Reporte enviado exitosamente por cobrador ' . $collector_name .
+                      ' - Préstamos: ' . count($selected_loans) .
+                      ' - Comisión total: $' . $total_commission);
+
+           $this->output->set_output(json_encode([
+               'success' => true,
+               'message' => 'Reporte enviado exitosamente al administrador',
+               'data' => $report_data
+           ]));
+
+       } catch (Exception $e) {
+           log_message('error', 'REPORTS: Error enviando reporte: ' . $e->getMessage() . ' - Trace: ' . $e->getTraceAsString());
+           $this->output->set_output(json_encode([
+               'success' => false,
+               'message' => 'Error interno del servidor: ' . $e->getMessage()
+           ]));
+       }
+   }
+
+   /**
+    * Enviar notificación por email del reporte
+    */
+   private function _send_report_notification($report_data)
+   {
+       // Verificar configuración de email en la base de datos o config
+       $email_config = $this->config->item('email_config');
+       if ($email_config && isset($email_config['smtp_host'])) {
+           // Configurar email si hay configuración disponible
+           $this->load->library('email');
+
+           $config = array(
+               'protocol' => $email_config['protocol'] ?? 'smtp',
+               'smtp_host' => $email_config['smtp_host'],
+               'smtp_port' => $email_config['smtp_port'] ?? 587,
+               'smtp_user' => $email_config['smtp_user'] ?? '',
+               'smtp_pass' => $email_config['smtp_pass'] ?? '',
+               'mailtype' => 'html',
+               'charset' => 'utf-8',
+               'wordwrap' => TRUE
+           );
+
+           $this->email->initialize($config);
+
+           // Preparar contenido del email
+           $subject = 'Reporte de Comisiones - ' . $report_data['collector_name'];
+           $message = $this->_generate_report_email_content($report_data);
+
+           // Enviar email (cambiar destinatarios según configuración)
+           $admin_email = $this->config->item('admin_email') ?: 'admin@prestamos.com';
+           $this->email->from('sistema@prestamos.com', 'Sistema de Préstamos');
+           $this->email->to($admin_email);
+           $this->email->subject($subject);
+           $this->email->message($message);
+
+           // Intentar enviar (no fallar si no hay configuración de email)
+           try {
+               if ($this->email->send()) {
+                   log_message('info', 'REPORTS: Email enviado exitosamente a ' . $admin_email);
+               } else {
+                   log_message('error', 'REPORTS: Error enviando email: ' . $this->email->print_debugger());
+               }
+           } catch (Exception $e) {
+               log_message('error', 'REPORTS: Error enviando email: ' . $e->getMessage());
+           }
+       } else {
+           // Si no hay configuración de email, solo loggear
+           log_message('info', 'REPORTS: Email no configurado - Reporte registrado solo en logs');
+       }
+
+       // También crear una notificación interna en el sistema (si existe tabla de notificaciones)
+       $this->_create_internal_notification($report_data);
+   }
+
+   /**
+    * Generar contenido HTML del email del reporte
+    */
+   private function _generate_report_email_content($report_data)
+   {
+       $html = '
+       <html>
+       <head>
+           <style>
+               body { font-family: Arial, sans-serif; }
+               .header { background-color: #007bff; color: white; padding: 20px; }
+               .content { padding: 20px; }
+               .table { border-collapse: collapse; width: 100%; }
+               .table th, .table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+               .table th { background-color: #f2f2f2; }
+               .total { font-weight: bold; background-color: #e9ecef; }
+           </style>
+       </head>
+       <body>
+           <div class="header">
+               <h2>Reporte de Comisiones del 40%</h2>
+               <p>Enviado por: ' . htmlspecialchars($report_data['collector_name']) . '</p>
+           </div>
+
+           <div class="content">
+               <h3>Información del Reporte</h3>
+               <p><strong>Fecha de envío:</strong> ' . date('d/m/Y H:i:s') . '</p>
+               <p><strong>Período:</strong> ' . ($report_data['start_date'] ?: 'Sin límite') . ' - ' . ($report_data['end_date'] ?: 'Sin límite') . '</p>
+               <p><strong>Total de préstamos:</strong> ' . $report_data['loan_count'] . '</p>
+               <p><strong>Comisión total del 40%:</strong> $' . number_format($report_data['total_commission'], 2, ',', '.') . '</p>
+
+               <h3>Detalle de Préstamos</h3>
+               <table class="table">
+                   <thead>
+                       <tr>
+                           <th>ID Préstamo</th>
+                           <th>Cliente</th>
+                           <th>Interés Pagado</th>
+                           <th>Comisión 40%</th>
+                       </tr>
+                   </thead>
+                   <tbody>';
+
+       foreach ($report_data['selected_loans'] as $loan) {
+           $html .= '
+                       <tr>
+                           <td>' . htmlspecialchars($loan['loan_id']) . '</td>
+                           <td>' . htmlspecialchars($loan['customer_name']) . '</td>
+                           <td>$' . number_format($loan['interest'], 2, ',', '.') . '</td>
+                           <td>$' . number_format($loan['commission'], 2, ',', '.') . '</td>
+                       </tr>';
+       }
+
+       $html .= '
+                       <tr class="total">
+                           <td colspan="3"><strong>TOTAL</strong></td>
+                           <td><strong>$' . number_format($report_data['total_commission'], 2, ',', '.') . '</strong></td>
+                       </tr>
+                   </tbody>
+               </table>
+
+               <p style="margin-top: 20px;">
+                   Este reporte ha sido generado automáticamente por el sistema de préstamos.
+                   Por favor, revise y procese las comisiones correspondientes.
+               </p>
+           </div>
+       </body>
+       </html>';
+
+       return $html;
+   }
+
+   /**
+    * Crear notificación interna en el sistema
+    */
+   private function _create_internal_notification($report_data)
+   {
+       // Verificar y crear tabla notifications si no existe
+       if (!$this->db->table_exists('notifications')) {
+           $this->db->query("
+               CREATE TABLE notifications (
+                   id INT AUTO_INCREMENT PRIMARY KEY,
+                   user_id INT NOT NULL,
+                   title VARCHAR(255) NOT NULL,
+                   message TEXT,
+                   type VARCHAR(50) DEFAULT 'info',
+                   data TEXT,
+                   is_read TINYINT(1) DEFAULT 0,
+                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+               )
+           ");
+           log_message('info', 'REPORTS: Tabla notifications creada automáticamente');
+       }
+
+       // Crear notificación interna
+       $notification_data = [
+           'user_id' => 1, // Administrador (asumiendo ID 1)
+           'title' => 'Nuevo Reporte de Comisiones Recibido',
+           'message' => 'El cobrador ' . $report_data['collector_name'] . ' ha enviado un reporte de comisiones por $' . number_format($report_data['total_commission'], 2, ',', '.') . ' (' . $report_data['loan_count'] . ' préstamos)',
+           'type' => 'report',
+           'data' => json_encode($report_data),
+           'is_read' => 0,
+           'created_at' => date('Y-m-d H:i:s')
+       ];
+
+       try {
+           $this->db->insert('notifications', $notification_data);
+           log_message('info', 'REPORTS: Notificación interna creada para administrador');
+       } catch (Exception $e) {
+           log_message('error', 'REPORTS: Error creando notificación interna: ' . $e->getMessage());
+           throw $e; // Re-lanzar para que sea manejado por el método llamador
+       }
+
+       // Verificar y crear tabla reports si no existe
+       if (!$this->db->table_exists('reports')) {
+           $this->db->query("
+               CREATE TABLE reports (
+                   id INT AUTO_INCREMENT PRIMARY KEY,
+                   collector_id INT NOT NULL,
+                   collector_name VARCHAR(255) NOT NULL,
+                   loan_count INT NOT NULL,
+                   total_commission DECIMAL(10,2) NOT NULL,
+                   start_date DATE,
+                   end_date DATE,
+                   selected_loans TEXT,
+                   status ENUM('received', 'approved', 'rejected') DEFAULT 'received',
+                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+               )
+           ");
+           log_message('info', 'REPORTS: Tabla reports creada automáticamente');
+       }
+
+       // Registrar en tabla de reportes
+       $report_record = [
+           'collector_id' => $report_data['collector_id'],
+           'collector_name' => $report_data['collector_name'],
+           'loan_count' => $report_data['loan_count'],
+           'total_commission' => $report_data['total_commission'],
+           'start_date' => $report_data['start_date'],
+           'end_date' => $report_data['end_date'],
+           'selected_loans' => json_encode($report_data['selected_loans']),
+           'status' => 'received',
+           'created_at' => date('Y-m-d H:i:s')
+       ];
+
+       try {
+           $this->db->insert('reports', $report_record);
+           log_message('info', 'REPORTS: Reporte guardado en tabla reports');
+       } catch (Exception $e) {
+           log_message('error', 'REPORTS: Error guardando reporte en BD: ' . $e->getMessage());
+           throw $e; // Re-lanzar para que sea manejado por el método llamador
+       }
+   }
+
+   /**
+    * Crear notificación básica como respaldo
+    */
+   private function _create_basic_notification($report_data)
+   {
+       // Crear tabla de notificaciones si no existe
+       $this->db->query("
+           CREATE TABLE IF NOT EXISTS notifications (
+               id INT AUTO_INCREMENT PRIMARY KEY,
+               user_id INT NOT NULL,
+               title VARCHAR(255) NOT NULL,
+               message TEXT,
+               type VARCHAR(50) DEFAULT 'info',
+               data TEXT,
+               is_read TINYINT(1) DEFAULT 0,
+               created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+           )
+       ");
+
+       // Crear tabla reports si no existe
+       $this->db->query("
+           CREATE TABLE IF NOT EXISTS reports (
+               id INT AUTO_INCREMENT PRIMARY KEY,
+               collector_id INT NOT NULL,
+               collector_name VARCHAR(255) NOT NULL,
+               loan_count INT NOT NULL,
+               total_commission DECIMAL(10,2) NOT NULL,
+               start_date DATE,
+               end_date DATE,
+               selected_loans TEXT,
+               status ENUM('received', 'approved', 'rejected') DEFAULT 'received',
+               created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+               updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+           )
+       ");
+
+       $notification_data = [
+           'user_id' => 1, // Administrador
+           'title' => 'Reporte de Comisiones Recibido',
+           'message' => 'Cobrador: ' . $report_data['collector_name'] . ' - Monto: $' . number_format($report_data['total_commission'], 2, ',', '.') . ' - Préstamos: ' . $report_data['loan_count'],
+           'type' => 'report',
+           'data' => json_encode(['collector_id' => $report_data['collector_id'], 'total_commission' => $report_data['total_commission']]),
+           'is_read' => 0,
+           'created_at' => date('Y-m-d H:i:s')
+       ];
+
+       $this->db->insert('notifications', $notification_data);
+       log_message('info', 'REPORTS: Notificación básica creada exitosamente');
+
+       // También guardar el reporte
+       $report_record = [
+           'collector_id' => $report_data['collector_id'],
+           'collector_name' => $report_data['collector_name'],
+           'loan_count' => $report_data['loan_count'],
+           'total_commission' => $report_data['total_commission'],
+           'start_date' => $report_data['start_date'],
+           'end_date' => $report_data['end_date'],
+           'selected_loans' => json_encode($report_data['selected_loans']),
+           'status' => 'received',
+           'created_at' => date('Y-m-d H:i:s')
+       ];
+
+       $this->db->insert('reports', $report_record);
+       log_message('info', 'REPORTS: Reporte básico guardado exitosamente');
+   }
+
+   /**
     * Método auxiliar para obtener resumen de comisiones de cobradores
     */
    private function _get_collector_commissions_summary($validated_dates, $collector_id = null)
    {
-     // Obtener todos los cobradores con sus comisiones
-     $this->db->select('
-       u.id as collector_id,
+     // Obtener directamente desde collector_commissions los cobradores con comisiones enviadas
+     // Usar consulta SQL directa para mayor control
+     $sql = "
+       SELECT 
+         cc.user_id as collector_id,
        u.first_name,
        u.last_name,
-       COALESCE(SUM(li.interest_paid), 0) as total_interest,
-       COALESCE(SUM(li.interest_paid) * 0.4, 0) as commission_40,
-       MAX(li.pay_date) as last_payment_date
-     ');
-     $this->db->from('users u');
-     $this->db->join('loan_items li', 'li.paid_by = u.id', 'left');
-     $this->db->join('loans l', 'l.id = li.loan_id', 'left');
-
-     // Aplicar filtros de fecha
-     if (!empty($validated_dates) && isset($validated_dates['start'])) {
-       $this->db->where('li.pay_date >=', $validated_dates['start'] . ' 00:00:00');
+         SUM(cc.commission) as commission_40,
+         SUM(cc.amount) as total_interest,
+         MAX(cc.sent_at) as sent_at,
+         COUNT(DISTINCT cc.loan_id) as loans_count
+       FROM collector_commissions cc
+       INNER JOIN users u ON u.id = cc.user_id
+       WHERE cc.status = 'enviado'
+     ";
+     
+     // Aplicar filtros de fecha de forma más flexible
+     if (!empty($validated_dates) && isset($validated_dates['start']) && isset($validated_dates['end'])) {
+       // Si hay fechas, buscar comisiones cuyo período se solape con el rango seleccionado
+       // O que no tengan período definido (NULL)
+       $sql .= " AND (
+         (cc.period_start <= '" . $this->db->escape_str($validated_dates['end']) . "' AND cc.period_end >= '" . $this->db->escape_str($validated_dates['start']) . "')
+         OR cc.period_start IS NULL 
+         OR cc.period_end IS NULL
+       )";
+     } elseif (!empty($validated_dates) && isset($validated_dates['start'])) {
+       $sql .= " AND (cc.period_end >= '" . $this->db->escape_str($validated_dates['start']) . "' OR cc.period_end IS NULL)";
+     } elseif (!empty($validated_dates) && isset($validated_dates['end'])) {
+       $sql .= " AND (cc.period_start <= '" . $this->db->escape_str($validated_dates['end']) . "' OR cc.period_start IS NULL)";
      }
-     if (!empty($validated_dates) && isset($validated_dates['end'])) {
-       $this->db->where('li.pay_date <=', $validated_dates['end'] . ' 23:59:59');
-     }
+     // Si no hay fechas, no aplicar filtro de fechas - mostrar todos los enviados
 
      // Filtrar por cobrador específico si se proporciona
      if ($collector_id) {
-       $this->db->where('u.id', $collector_id);
+       $sql .= " AND cc.user_id = " . (int)$collector_id;
      }
 
-     // Solo usuarios que han realizado pagos (sin filtrar por rol específico)
-     $this->db->where('li.status', 0); // Solo pagos completados
-     $this->db->where('li.interest_paid >', 0); // Solo con intereses pagados
+     $sql .= " GROUP BY cc.user_id ORDER BY u.first_name, u.last_name";
 
-     $this->db->group_by('u.id');
-     $this->db->order_by('u.first_name, u.last_name');
-
-     $results = $this->db->get()->result();
+     // Ejecutar consulta
+     $query = $this->db->query($sql);
+     $results = $query->result();
+     
+     // Log para debugging
+     log_message('debug', 'Reports::_get_collector_commissions_summary - Cobradores encontrados: ' . count($results));
+     if (!empty($results)) {
+       foreach ($results as $r) {
+         log_message('debug', 'Reports::_get_collector_commissions_summary - Cobrador: ' . $r->first_name . ' ' . $r->last_name . ' - Comisión: ' . $r->commission_40);
+       }
+     }
 
      // Si se filtra por un cobrador específico y no hay resultados,
-     // devolver un array vacío en lugar de intentar procesar resultados nulos
+     // devolver un array vacío
      if ($collector_id && empty($results)) {
        return [];
      }
 
-     // Procesar resultados para determinar estado de envío
+     // Procesar resultados - todos ya están enviados
      foreach ($results as &$result) {
-       // La tabla collector_commissions no tiene campos status ni sent_at según la estructura real
-       // Por ahora, marcar todos como pendientes ya que no hay tracking de envío
-       $result->send_status = 'pendiente';
-       $result->sent_at = null;
+       $result->send_status = 'enviado';
+       $result->last_payment_date = $result->sent_at; // Usar sent_at como fecha de referencia
+       
+       // Asegurar que los valores numéricos sean correctos
+       $result->total_interest = floatval($result->total_interest ?? 0);
+       $result->commission_40 = floatval($result->commission_40 ?? 0);
 
        // Crear badge de estado
-       $result->status_badge = '<span class="badge badge-warning">Pendiente</span>';
+       $result->status_badge = '<span class="badge badge-success">Enviado</span>';
+       if ($result->sent_at) {
+         $result->status_badge .= '<br><small class="text-muted">' . date('d/m/Y H:i', strtotime($result->sent_at)) . '</small>';
+       }
 
        // Formatear montos
        $result->total_interest_formatted = '$' . number_format($result->total_interest, 0, ',', '.');
        $result->commission_40_formatted = '$' . number_format($result->commission_40, 0, ',', '.');
-       $result->collector_name = $result->first_name . ' ' . $result->last_name;
+       $result->collector_name = trim($result->first_name . ' ' . $result->last_name);
      }
 
      return $results;
@@ -1917,6 +2704,131 @@ class Reports extends MY_Controller {
        $this->output->set_content_type('application/json');
        echo json_encode(['error' => 'Error interno del servidor']);
      }
+   }
+
+   /**
+    * Método para enviar reportes múltiples de cobradores (bulk submission)
+    */
+   public function send_bulk_reports()
+   {
+       log_message('debug', 'Reports::send_bulk_reports called');
+
+       // Verificar método POST
+       if ($this->input->method() !== 'post') {
+           $this->output->set_content_type('application/json');
+           $this->output->set_output(json_encode(['success' => false, 'message' => 'Método no permitido']));
+           return;
+       }
+
+       // Verificar usuario logueado
+       $current_user_id = $this->session->userdata('user_id');
+       if (!$current_user_id) {
+           log_message('error', 'REPORTS: Usuario no logueado intentando enviar reportes');
+           $this->output->set_content_type('application/json');
+           $this->output->set_output(json_encode(['success' => false, 'message' => 'Usuario no autorizado']));
+           return;
+       }
+
+       try {
+           // Obtener y validar datos del POST
+           $selected_reports = $this->input->post('selected_reports');
+           $total_commission = $this->input->post('total_commission');
+           $start_date = $this->input->post('start_date');
+           $end_date = $this->input->post('end_date');
+
+           // Validaciones básicas
+           if (empty($selected_reports)) {
+               throw new Exception('No se seleccionaron reportes para enviar');
+           }
+
+           if (!is_numeric($total_commission) || $total_commission <= 0) {
+               throw new Exception('Monto total de comisión inválido');
+           }
+
+           // Decodificar JSON de reportes seleccionados
+           $reports_data = json_decode($selected_reports, true);
+           if (json_last_error() !== JSON_ERROR_NONE) {
+               throw new Exception('Datos de reportes inválidos');
+           }
+
+           if (empty($reports_data) || !is_array($reports_data)) {
+               throw new Exception('No hay reportes válidos para procesar');
+           }
+
+           // Validar fechas si se proporcionan
+           $validated_dates = null;
+           if ($start_date && $end_date) {
+               $validated_dates = $this->_validate_date_filters($start_date, $end_date);
+           }
+
+           // Procesar cada reporte seleccionado
+           $processed_reports = [];
+           $total_processed_commission = 0;
+
+           foreach ($reports_data as $report) {
+               // Validar datos del reporte individual
+               if (!isset($report['collector_id']) || !isset($report['commission'])) {
+                   log_message('warning', 'REPORTS: Reporte inválido omitido: ' . json_encode($report));
+                   continue;
+               }
+
+               $collector_id = (int)$report['collector_id'];
+               $commission = (float)$report['commission'];
+
+               if ($collector_id <= 0 || $commission < 0) {
+                   log_message('warning', 'REPORTS: Datos inválidos en reporte: collector_id=' . $collector_id . ', commission=' . $commission);
+                   continue;
+               }
+
+               // Preparar datos para el reporte
+               $report_data = [
+                   'collector_id' => $collector_id,
+                   'collector_name' => $report['collector_name'] ?? 'Cobrador ' . $collector_id,
+                   'loan_count' => 1, // Cada reporte representa un cobrador
+                   'total_commission' => $commission,
+                   'start_date' => $validated_dates['start'] ?? null,
+                   'end_date' => $validated_dates['end'] ?? null,
+                   'selected_loans' => json_encode([]), // Para compatibilidad
+                   'loan_count' => count($reports_data),
+                   'selected_loans' => json_encode($reports_data)
+               ];
+
+               // Crear notificación interna
+               $this->_create_internal_notification($report_data);
+
+               $processed_reports[] = $report_data;
+               $total_processed_commission += $commission;
+
+               log_message('info', 'REPORTS: Reporte procesado para cobrador ' . $collector_id . ' - Comisión: $' . $commission);
+           }
+
+           if (empty($processed_reports)) {
+               throw new Exception('No se pudieron procesar los reportes seleccionados');
+           }
+
+           // Respuesta exitosa
+           $response = [
+               'success' => true,
+               'message' => 'Reportes enviados exitosamente',
+               'processed_count' => count($processed_reports),
+               'total_commission' => $total_processed_commission,
+               'reports' => $processed_reports
+           ];
+
+           log_message('info', 'REPORTS: Bulk reports enviado exitosamente - ' . count($processed_reports) . ' reportes, total $' . $total_processed_commission);
+
+           $this->output->set_content_type('application/json');
+           $this->output->set_output(json_encode($response));
+
+       } catch (Exception $e) {
+           log_message('error', 'REPORTS: Error en send_bulk_reports: ' . $e->getMessage());
+
+           $this->output->set_content_type('application/json');
+           $this->output->set_output(json_encode([
+               'success' => false,
+               'message' => 'Error al procesar los reportes: ' . $e->getMessage()
+           ]));
+       }
    }
  
    /**
@@ -2107,6 +3019,140 @@ class Reports extends MY_Controller {
      return ['details' => $details, 'totals' => $totals];
    }
 
+  /**
+   * Asegurar que las columnas necesarias existan en collector_commissions (versión mysqli)
+   */
+  private function _ensure_commission_columns_mysqli($conn)
+  {
+    try {
+      // Verificar si existe la columna status
+      $result = $conn->query("SHOW COLUMNS FROM collector_commissions LIKE 'status'");
+      if ($result && $result->num_rows == 0) {
+        $conn->query("ALTER TABLE collector_commissions 
+                     ADD COLUMN `status` enum('pendiente','enviado','pagado') DEFAULT 'pendiente' 
+                     COMMENT 'Estado de la comisión' AFTER `commission`");
+      }
+
+      // Verificar si existe la columna sent_at
+      $result = $conn->query("SHOW COLUMNS FROM collector_commissions LIKE 'sent_at'");
+      if ($result && $result->num_rows == 0) {
+        $conn->query("ALTER TABLE collector_commissions 
+                     ADD COLUMN `sent_at` datetime DEFAULT NULL 
+                     COMMENT 'Fecha de envío al administrador' AFTER `status`");
+      }
+
+      // Verificar si existe la columna period_start
+      $result = $conn->query("SHOW COLUMNS FROM collector_commissions LIKE 'period_start'");
+      if ($result && $result->num_rows == 0) {
+        $conn->query("ALTER TABLE collector_commissions 
+                     ADD COLUMN `period_start` date DEFAULT NULL 
+                     COMMENT 'Inicio del período' AFTER `sent_at`");
+      }
+
+      // Verificar si existe la columna period_end
+      $result = $conn->query("SHOW COLUMNS FROM collector_commissions LIKE 'period_end'");
+      if ($result && $result->num_rows == 0) {
+        $conn->query("ALTER TABLE collector_commissions 
+                     ADD COLUMN `period_end` date DEFAULT NULL 
+                     COMMENT 'Fin del período' AFTER `period_start`");
+      }
+
+      // Verificar si existe la columna updated_at
+      $result = $conn->query("SHOW COLUMNS FROM collector_commissions LIKE 'updated_at'");
+      if ($result && $result->num_rows == 0) {
+        $conn->query("ALTER TABLE collector_commissions 
+                     ADD COLUMN `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP 
+                     AFTER `period_end`");
+      }
+
+      // Agregar índices si no existen
+      $indexes = $conn->query("SHOW INDEXES FROM collector_commissions WHERE Key_name = 'idx_status'");
+      if ($indexes && $indexes->num_rows == 0) {
+        $conn->query("ALTER TABLE collector_commissions ADD INDEX `idx_status` (`status`)");
+      }
+
+      $indexes = $conn->query("SHOW INDEXES FROM collector_commissions WHERE Key_name = 'idx_period'");
+      if ($indexes && $indexes->num_rows == 0) {
+        $conn->query("ALTER TABLE collector_commissions ADD INDEX `idx_period` (`period_start`, `period_end`)");
+      }
+
+      // Actualizar registros existentes sin status
+      $conn->query("UPDATE collector_commissions SET status = 'pendiente' WHERE status IS NULL OR status = ''");
+
+    } catch (Exception $e) {
+      // No lanzar excepción, continuar con el proceso
+      error_log('Error asegurando columnas de collector_commissions: ' . $e->getMessage());
+    }
+  }
+
+  /**
+   * Asegurar que las columnas necesarias existan en collector_commissions (versión CodeIgniter)
+   */
+  private function _ensure_commission_columns($db = null)
+  {
+    try {
+      // Usar el parámetro o $this->db por defecto
+      $db_instance = $db ? $db : $this->db;
+      
+      // Verificar si existe la columna status
+      $result = $db_instance->query("SHOW COLUMNS FROM collector_commissions LIKE 'status'");
+      if ($result && $result->num_rows() == 0) {
+        $db_instance->query("ALTER TABLE collector_commissions 
+                     ADD COLUMN `status` enum('pendiente','enviado','pagado') DEFAULT 'pendiente' 
+                     COMMENT 'Estado de la comisión' AFTER `commission`");
+      }
+
+      // Verificar si existe la columna sent_at
+      $result = $db_instance->query("SHOW COLUMNS FROM collector_commissions LIKE 'sent_at'");
+      if ($result && $result->num_rows() == 0) {
+        $db_instance->query("ALTER TABLE collector_commissions 
+                     ADD COLUMN `sent_at` datetime DEFAULT NULL 
+                     COMMENT 'Fecha de envío al administrador' AFTER `status`");
+      }
+
+      // Verificar si existe la columna period_start
+      $result = $db_instance->query("SHOW COLUMNS FROM collector_commissions LIKE 'period_start'");
+      if ($result && $result->num_rows() == 0) {
+        $db_instance->query("ALTER TABLE collector_commissions 
+                     ADD COLUMN `period_start` date DEFAULT NULL 
+                     COMMENT 'Inicio del período' AFTER `sent_at`");
+      }
+
+      // Verificar si existe la columna period_end
+      $result = $db_instance->query("SHOW COLUMNS FROM collector_commissions LIKE 'period_end'");
+      if ($result && $result->num_rows() == 0) {
+        $db_instance->query("ALTER TABLE collector_commissions 
+                     ADD COLUMN `period_end` date DEFAULT NULL 
+                     COMMENT 'Fin del período' AFTER `period_start`");
+      }
+
+      // Verificar si existe la columna updated_at
+      $result = $db_instance->query("SHOW COLUMNS FROM collector_commissions LIKE 'updated_at'");
+      if ($result && $result->num_rows() == 0) {
+        $db_instance->query("ALTER TABLE collector_commissions 
+                     ADD COLUMN `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP 
+                     AFTER `period_end`");
+      }
+
+      // Agregar índices si no existen
+      $indexes = $db_instance->query("SHOW INDEXES FROM collector_commissions WHERE Key_name = 'idx_status'");
+      if ($indexes && $indexes->num_rows() == 0) {
+        $db_instance->query("ALTER TABLE collector_commissions ADD INDEX `idx_status` (`status`)");
+      }
+
+      $indexes = $db_instance->query("SHOW INDEXES FROM collector_commissions WHERE Key_name = 'idx_period'");
+      if ($indexes && $indexes->num_rows() == 0) {
+        $db_instance->query("ALTER TABLE collector_commissions ADD INDEX `idx_period` (`period_start`, `period_end`)");
+      }
+
+      // Actualizar registros existentes sin status
+      $db_instance->query("UPDATE collector_commissions SET status = 'pendiente' WHERE status IS NULL OR status = ''");
+
+    } catch (Exception $e) {
+      log_message('error', 'Error asegurando columnas de collector_commissions: ' . $e->getMessage());
+      // No lanzar excepción, continuar con el proceso
+    }
+  }
 }
 
 /* End of file Reports.php */

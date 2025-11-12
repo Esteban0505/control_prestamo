@@ -10,6 +10,7 @@ class Loans extends MY_Controller {
     $this->load->model('customers_m');
     $this->load->library('form_validation');
     $this->load->library('amortization');
+    $this->load->library('paymentcalculator');
     $this->load->helper('currency');
     $this->load->helper('format');
     $this->load->helper('permission');
@@ -18,7 +19,35 @@ class Loans extends MY_Controller {
   public function index()
   {
     log_message('debug', 'Cargando lista de préstamos');
-    $data['loans'] = $this->loans_m->get_loans();
+
+    // Validar y sanitizar parámetros de entrada
+    $page = $this->input->get('page');
+    $per_page = $this->input->get('per_page');
+    $search = $this->input->get('search');
+    $status_filter = $this->input->get('status');
+
+    // Validaciones de seguridad
+    $page = is_numeric($page) && $page > 0 ? (int)$page : 1;
+    $per_page = is_numeric($per_page) && in_array($per_page, [25, 50, 100]) ? (int)$per_page : 25;
+    $search = is_string($search) ? trim(strip_tags($search)) : null;
+    $status_filter = in_array($status_filter, ['0', '1', '']) ? $status_filter : null;
+
+    // Limitar longitud de búsqueda para prevenir ataques
+    if ($search && strlen($search) > 100) {
+      $search = substr($search, 0, 100);
+    }
+
+    // Obtener datos paginados
+    $result = $this->loans_m->get_loans($page, $per_page, $search, $status_filter);
+
+    $data['loans'] = $result['loans'];
+    $data['total_records'] = $result['total_records'];
+    $data['total_pages'] = $result['total_pages'];
+    $data['current_page'] = $result['current_page'];
+    $data['per_page'] = $result['per_page'];
+    $data['search'] = $search;
+    $data['status_filter'] = $status_filter;
+
     log_message('debug', 'Loans in controller: ' . json_encode($data['loans']));
     $data['subview'] = 'admin/loans/index';
     $this->load->view('admin/_main_layout', $data);
@@ -57,9 +86,21 @@ class Loans extends MY_Controller {
 
     $rules = $this->loans_m->loan_rules;
     $this->form_validation->set_rules($rules);
+
+    // Agregar validaciones callback personalizadas
+    $this->form_validation->set_rules('date', 'Fecha y hora de emisión', 'callback_validate_emission_datetime');
+    $this->form_validation->set_rules('payment_start_date', 'Fecha de inicio de cobros', 'callback_validate_payment_start_date');
     $raw_post = $this->input->post();
     log_message('debug', 'Validation rules set for loan ' . ($is_edit ? 'update' : 'creation'));
     log_message('debug', 'POST data received: ' . json_encode($raw_post));
+
+    // === DIAGNÓSTICO FECHAS - INICIO VALIDACIÓN ===
+    log_message('debug', '=== DIAGNÓSTICO FECHAS - INICIO VALIDACIÓN ===');
+    log_message('debug', 'Server timezone: ' . date_default_timezone_get());
+    log_message('debug', 'Current server time: ' . date('Y-m-d H:i:s T'));
+    log_message('debug', 'Current timestamp: ' . time());
+    log_message('debug', 'POST date field: ' . ($this->input->post('date') ?? 'NOT SET'));
+    log_message('debug', 'POST payment_start_date field: ' . ($this->input->post('payment_start_date') ?? 'NOT SET'));
 
     // Logging de préstamo activo antes de validar
     $customer_id = $this->input->post('customer_id') ?: ($data['loan']->customer_id ?? null);
@@ -72,7 +113,8 @@ class Loans extends MY_Controller {
         $this->db->where('l.id !=', $loan_id);
       }
       $this->db->where('l.status', 1);
-      $active_loan = $this->db->get()->row();
+      $active_loan_query = $this->db->get();
+      $active_loan = $active_loan_query->row();
       $has_active = $active_loan ? true : false;
       log_message('debug', 'Cliente ' . $customer_id . ' tiene préstamo activo: ' . ($has_active ? 'Sí' : 'No'));
       error_log("ACTIVE_LOAN_LOG: customer_id=$customer_id, has_active=" . ($has_active ? '1' : '0') . ", active_loan=" . json_encode($active_loan));
@@ -88,27 +130,80 @@ class Loans extends MY_Controller {
         log_message('debug', 'credit_amount not found in POST');
     }
 
+    log_message('debug', 'Form validation result: ' . ($this->form_validation->run() ? 'PASSED' : 'FAILED'));
+    log_message('debug', '=== DIAGNÓSTICO FECHAS - FIN VALIDACIÓN ===');
     if ($this->form_validation->run() == TRUE) {
+      log_message('debug', 'Form validation PASSED, proceeding with loan creation/update');
 
-      // Validación adicional: impedir si cliente tiene préstamo activo
+      // Validación adicional: impedir si cliente tiene cuotas pendientes
       $customer_id = $this->input->post('customer_id');
-      $this->db->select('l.status');
+      log_message('debug', 'Checking pending installments for customer_id: ' . $customer_id);
+
+      // Verificar si cliente está en blacklist
+      $is_blacklisted = $this->customers_m->check_blacklist($customer_id);
+      if ($is_blacklisted) {
+        log_message('debug', 'Validation FAILED: Customer is blacklisted');
+        if ($is_ajax) {
+          echo json_encode(['success' => false, 'error' => 'Cliente bloqueado por política de riesgo. Contacte al administrador.']);
+          return;
+        } else {
+          $this->session->set_flashdata('error', 'Cliente bloqueado por política de riesgo. Contacte al administrador.');
+          redirect('admin/loans/edit');
+        }
+      }
+
+      // Verificar si el cliente está activo
+      $is_active = $this->customers_m->is_customer_active($customer_id);
+      if (!$is_active) {
+        log_message('debug', 'Validation FAILED: Customer is inactive');
+        if ($is_ajax) {
+          echo json_encode(['success' => false, 'error' => 'El cliente está desactivado y no puede realizar préstamos. Active el cliente primero.']);
+          return;
+        } else {
+          $this->session->set_flashdata('error', 'El cliente está desactivado y no puede realizar préstamos. Active el cliente primero.');
+          redirect('admin/loans/edit');
+        }
+      }
+
+      // CORRECCIÓN: Verificar si el cliente tiene cuotas pendientes (balance > 0) en lugar de solo préstamos activos
+      $this->db->select('SUM(COALESCE(li.balance, 0)) as total_pending_balance, COUNT(*) as pending_installments');
       $this->db->from('loans l');
+      $this->db->join('loan_items li', 'li.loan_id = l.id', 'left');
       $this->db->where('l.customer_id', $customer_id);
       if ($is_edit) {
         $this->db->where('l.id !=', $loan_id);
       }
-      $this->db->where('l.status', 1);
-      $active_loan = $this->db->get()->row();
-      error_log("ACTIVE_LOAN_VALIDATION: customer_id=$customer_id, active_loan=" . json_encode($active_loan));
-      if ($active_loan) {
+      $this->db->where('l.status', 1); // Solo préstamos activos
+      $this->db->where('li.status !=', 0); // Solo cuotas no completamente pagadas
+      $this->db->where('li.extra_payment !=', 3); // Excluir condonadas
+      $pending_check = $this->db->get()->row();
+
+      $has_pending_installments = $pending_check && ($pending_check->total_pending_balance > 0.01 || $pending_check->pending_installments > 0);
+      log_message('debug', 'Pending installments check result: ' . json_encode($pending_check));
+      error_log("PENDING_INSTALLMENTS_VALIDATION: customer_id=$customer_id, has_pending=" . ($has_pending_installments ? '1' : '0'));
+      if ($has_pending_installments) {
+        log_message('debug', 'Validation FAILED: Customer has pending installments');
         if ($is_ajax) {
-          echo json_encode(['success' => false, 'error' => 'Persona con préstamo pendiente']);
+          echo json_encode(['success' => false, 'error' => 'El cliente tiene cuotas pendientes de pago. Complete el pago de las cuotas actuales antes de crear un nuevo préstamo.']);
           return;
         } else {
-          $this->session->set_flashdata('error', 'Persona con préstamo pendiente');
+          $this->session->set_flashdata('error', 'El cliente tiene cuotas pendientes de pago. Complete el pago de las cuotas actuales antes de crear un nuevo préstamo.');
           redirect('admin/loans/edit');
         }
+      }
+      log_message('debug', 'Active loan validation PASSED');
+
+      // Validación de límites de crédito solo cuando se intenta guardar (no en AJAX)
+      if (!$is_ajax) {
+        log_message('debug', 'Validating loan limits for non-AJAX request');
+        $credit_amount = $this->input->post('credit_amount');
+        if (!$this->validate_loan_limit($credit_amount)) {
+          log_message('debug', 'Loan limit validation FAILED');
+          $this->session->set_flashdata('error', 'Límite de crédito excedido o cliente con préstamo activo');
+          redirect('admin/loans/edit');
+          return;
+        }
+        log_message('debug', 'Loan limit validation PASSED');
       }
 
       // Obtener datos del formulario y convertir formato colombiano a decimal
@@ -127,18 +222,24 @@ class Loans extends MY_Controller {
       }
       log_message('debug', 'Valor de amortization_type validado: ' . $amortization_type);
 
-      // Validación adicional: para amortización mixta, solo permitir frecuencia quincenal
-      if ($amortization_type === 'mixta' && $payment_frequency !== 'quincenal') {
-          if ($is_ajax) {
-              echo json_encode(['success' => false, 'error' => 'Para amortización mixta, solo se permite frecuencia de pago quincenal']);
-              return;
-          } else {
-              $this->session->set_flashdata('error', 'Para amortización mixta, solo se permite frecuencia de pago quincenal');
-              redirect('admin/loans/edit');
-          }
-      }
+      // Validación adicional removida: ahora se permiten todos los tipos de amortización con cualquier frecuencia
+      log_message('debug', 'Amortization type validation PASSED');
       $start_date = $raw_post['date'];
-      $payment_day = date('j', strtotime($start_date));
+      $payment_start_date = $raw_post['payment_start_date'] ?? null;
+
+      // Si se proporciona fecha completa de inicio de cobros, convertir formato dd/mm/yyyy a yyyy-mm-dd y extraer el día
+      if ($payment_start_date) {
+        // Convertir de formato dd/mm/yyyy a yyyy-mm-dd para strtotime
+        $date_parts = explode('/', $payment_start_date);
+        if (count($date_parts) === 3) {
+          $formatted_date = $date_parts[2] . '-' . $date_parts[1] . '-' . $date_parts[0];
+          $payment_start_day = (int) date('j', strtotime($formatted_date));
+        } else {
+          $payment_start_day = (int) date('j', strtotime($payment_start_date));
+        }
+      } else {
+        $payment_start_day = 1; // Valor por defecto
+      }
       $assigned_user_id = $raw_post['assigned_user_id'] ?? null;
       $tasa_type = $raw_post['tasa_tipo'];
 
@@ -180,7 +281,9 @@ class Loans extends MY_Controller {
       log_message('debug', 'Valores después de parsing: principal=' . $principal . ', interest_rate=' . $interest_rate);
 
       // Validaciones adicionales
+      log_message('debug', 'Validating principal amount: ' . $principal);
       if ($principal <= 0) {
+        log_message('debug', 'Validation FAILED: Principal <= 0');
         if ($is_ajax) {
           echo json_encode(['success' => false, 'error' => 'El monto del préstamo debe ser mayor a 0']);
           return;
@@ -189,8 +292,11 @@ class Loans extends MY_Controller {
           redirect('admin/loans/edit');
         }
       }
+      log_message('debug', 'Principal validation PASSED');
 
+      log_message('debug', 'Validating interest rate: ' . $interest_rate);
       if ($interest_rate < 0) {
+        log_message('debug', 'Validation FAILED: Interest rate < 0');
         if ($is_ajax) {
           echo json_encode(['success' => false, 'error' => 'La tasa de interés no puede ser negativa']);
           return;
@@ -199,8 +305,11 @@ class Loans extends MY_Controller {
           redirect('admin/loans/edit');
         }
       }
+      log_message('debug', 'Interest rate validation PASSED');
 
+      log_message('debug', 'Validating num_months: ' . $num_months);
       if ($num_months <= 0 || $num_months > 120) {
+        log_message('debug', 'Validation FAILED: num_months out of range');
         if ($is_ajax) {
           echo json_encode(['success' => false, 'error' => 'El plazo en meses debe estar entre 1 y 120']);
           return;
@@ -209,6 +318,7 @@ class Loans extends MY_Controller {
           redirect('admin/loans/edit');
         }
       }
+      log_message('debug', 'Num months validation PASSED');
 
       log_message('debug', 'Tasa: ' . $interest_rate . ', tipo: ' . $tasa_type . ', iniciando cálculo de amortización');
 
@@ -238,18 +348,15 @@ class Loans extends MY_Controller {
       $period_rate = $this->loans_m->get_period_rate($interest_rate, $periods_per_year, $tasa_type);
       log_message('debug', 'Tasa periódica calculada: ' . $period_rate);
 
-      // Validar fecha de inicio
-      if (empty($start_date) || !strtotime($start_date)) {
-        if ($is_ajax) {
-          echo json_encode(['success' => false, 'error' => 'La fecha de inicio es requerida y debe ser válida']);
-          return;
-        } else {
-          $this->session->set_flashdata('error', 'La fecha de inicio es requerida y debe ser válida');
-          redirect('admin/loans/edit');
-        }
-      }
+      // Validar fecha y hora de emisión (ya validada por form_validation)
+      log_message('debug', 'Emission date and time validation PASSED (validated by form_validation)');
+      log_message('debug', 'start_date value: ' . $start_date);
 
+      log_message('debug', 'Attempting to calculate amortization table with params: principal=' . $principal . ', period_rate=' . $period_rate . ', periods=' . $periods . ', frequency=' . $payment_frequency . ', type=' . $amortization_type . ', tasa_type=' . $tasa_type);
       try {
+        // Usar payment_start_date directamente (ya no necesitamos convertir a día)
+        $payment_start_date = $raw_post['payment_start_date'] ?? null;
+
         // Calcular tabla de amortización usando la librería
         $amortization_table = $this->amortization->calculate_amortization_table(
           $principal,
@@ -258,11 +365,13 @@ class Loans extends MY_Controller {
           $payment_frequency,
           $start_date,
           $amortization_type,
-          $payment_day
+          $tasa_type,
+          $payment_start_date
         );
 
         // Verificar que se generó la tabla correctamente
         if (empty($amortization_table)) {
+          log_message('debug', 'Amortization table calculation FAILED: empty result');
           throw new Exception('No se pudo generar la tabla de amortización');
         }
         log_message('debug', 'Tabla de amortización calculada con ' . count($amortization_table) . ' pagos');
@@ -296,9 +405,27 @@ class Loans extends MY_Controller {
           'coin_id',
           'date',
           'amortization_type',
-          'tipo_cliente'
+          'tipo_cliente',
+          'payment_start_day'
         ]);
         $loan_data['amortization_type'] = $amortization_type;
+
+        // Establecer zona horaria a Bogotá (UTC-5) para la fecha de emisión
+        date_default_timezone_set('America/Bogota');
+
+        // Para nuevos préstamos, usar la fecha/hora actual en zona horaria colombiana
+        if (!$is_edit) {
+          $loan_data['date'] = date('Y-m-d H:i:s');
+          log_message('debug', 'Nueva fecha de emisión para préstamo: ' . $loan_data['date']);
+        } elseif (empty($loan_data['date'])) {
+          // Si se está editando pero no se envió fecha, mantener la existente
+          $existing_loan = $this->loans_m->get_loan($loan_id);
+          $loan_data['date'] = $existing_loan->date;
+          log_message('debug', 'Manteniendo fecha existente para edición: ' . $loan_data['date']);
+        } else {
+          // Si se envió una fecha desde el formulario, usarla tal cual (datetime-local ya maneja zona horaria)
+          log_message('debug', 'Fecha enviada desde formulario: ' . $loan_data['date']);
+        }
         // Guardar el número de cuotas calculado en num_fee
         $loan_data['num_fee'] = $periods;
         
@@ -357,6 +484,7 @@ class Loans extends MY_Controller {
 
       } catch (Exception $e) {
         log_message('error', 'Error en cálculo de amortización: ' . $e->getMessage());
+        log_message('debug', 'Exception caught during amortization calculation');
         $this->db->trans_rollback();
         if ($is_ajax) {
           echo json_encode(['success' => false, 'error' => 'Error en el cálculo: ' . $e->getMessage()]);
@@ -373,6 +501,10 @@ class Loans extends MY_Controller {
       echo json_encode(['success' => false, 'error' => strip_tags(validation_errors())]);
       return;
     } else {
+      log_message('debug', 'Form validation FAILED, showing validation errors');
+      $validation_errors = validation_errors();
+      log_message('debug', 'Validation errors: ' . $validation_errors);
+      log_message('debug', '=== DIAGNÓSTICO FECHAS - FIN VALIDACIÓN ===');
       $data['subview'] = 'admin/loans/edit';
       $this->load->view('admin/_main_layout', $data);
     }
@@ -381,8 +513,9 @@ class Loans extends MY_Controller {
   function ajax_searchCst()
   {
     $dni = $this->input->post('dni');
-    log_message('debug', 'Buscando cliente por DNI: ' . $dni);
-    $cst = $this->loans_m->get_searchCst($dni);
+    $suggest = $this->input->post('suggest') == '1';
+    log_message('debug', 'Buscando cliente por DNI: ' . $dni . ', suggest: ' . ($suggest ? 'true' : 'false'));
+    $cst = $this->loans_m->get_searchCst($dni, $suggest);
     log_message('debug', 'Resultado de búsqueda: ' . json_encode($cst));
     echo json_encode($cst);
   }
@@ -409,6 +542,155 @@ class Loans extends MY_Controller {
       $this->form_validation->set_message('check_date_not_future', 'La fecha de emisión no puede ser futura.');
       return false;
     }
+    return true;
+  }
+
+  /**
+   * Valida fecha y hora de emisión
+   */
+  public function validate_emission_datetime($datetime) {
+    log_message('debug', 'validate_emission_datetime called with: ' . $datetime);
+
+    if (empty($datetime)) {
+      $this->form_validation->set_message('validate_emission_datetime', 'La fecha y hora de emisión es requerida');
+      return false;
+    }
+
+    // Verificar formato datetime-local (Y-m-dTH:i:s o Y-m-dTH:i)
+    $pattern = '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/';
+    if (!preg_match($pattern, $datetime)) {
+      log_message('debug', 'validate_emission_datetime: formato inválido - ' . $datetime);
+      $this->form_validation->set_message('validate_emission_datetime', 'Formato de fecha y hora inválido. Use formato: YYYY-MM-DDTHH:MM:SS');
+      return false;
+    }
+
+    // Asegurar zona horaria correcta
+    date_default_timezone_set('America/Bogota');
+
+    // Convertir a timestamp
+    $timestamp = strtotime($datetime);
+    if ($timestamp === false) {
+      log_message('debug', 'validate_emission_datetime: strtotime falló para - ' . $datetime);
+      $this->form_validation->set_message('validate_emission_datetime', 'Fecha y hora inválida');
+      return false;
+    }
+
+    $current_time = time();
+
+    // Log para diagnóstico
+    log_message('debug', 'VALIDATE_EMISSION_DATETIME: input=' . $datetime . ', timestamp=' . $timestamp . ', current=' . $current_time . ', diff=' . ($current_time - $timestamp));
+
+    // Para fecha de emisión: permitir un rango más amplio (±4 horas para flexibilidad)
+    // Esto permite flexibilidad para correcciones administrativas
+    $four_hours_ago = $current_time - 14400; // 4 horas atrás
+    $four_hours_future = $current_time + 14400; // 4 horas adelante
+
+    if ($timestamp < $four_hours_ago) {
+      log_message('debug', 'validate_emission_datetime: fecha demasiado antigua - emission_time=' . date('Y-m-d H:i:s', $timestamp) . ' < four_hours_ago=' . date('Y-m-d H:i:s', $four_hours_ago));
+      $this->form_validation->set_message('validate_emission_datetime', 'La fecha y hora de emisión no puede ser anterior a hace 4 horas');
+      return false;
+    }
+
+    if ($timestamp > $four_hours_future) {
+      log_message('debug', 'validate_emission_datetime: fecha futura - emission_time=' . date('Y-m-d H:i:s', $timestamp) . ' > four_hours_future=' . date('Y-m-d H:i:s', $four_hours_future));
+      $this->form_validation->set_message('validate_emission_datetime', 'La fecha y hora de emisión no puede ser posterior a dentro de 4 horas');
+      return false;
+    }
+
+    log_message('debug', 'validate_emission_datetime: validación PASSED');
+    return true;
+  }
+
+  /**
+   * Valida fecha de inicio de cobros
+   */
+  public function validate_payment_start_date($date) {
+    log_message('debug', 'validate_payment_start_date called with: ' . $date);
+
+    if (empty($date)) {
+      $this->form_validation->set_message('validate_payment_start_date', 'La fecha de inicio de cobros es requerida');
+      return false;
+    }
+
+    // Verificar formato dd/mm/yyyy
+    $pattern = '/^\d{2}\/\d{2}\/\d{4}$/';
+    if (!preg_match($pattern, $date)) {
+      log_message('debug', 'validate_payment_start_date: formato inválido - ' . $date);
+      $this->form_validation->set_message('validate_payment_start_date', 'Formato de fecha inválido. Use formato: DD/MM/YYYY');
+      return false;
+    }
+
+    // Convertir formato dd/mm/yyyy a yyyy-mm-dd para validación
+    $parts = explode('/', $date);
+    if (count($parts) !== 3) {
+      log_message('debug', 'validate_payment_start_date: partes insuficientes - ' . $date);
+      $this->form_validation->set_message('validate_payment_start_date', 'Fecha inválida');
+      return false;
+    }
+
+    $day = (int) $parts[0];
+    $month = (int) $parts[1];
+    $year = (int) $parts[2];
+
+    log_message('debug', 'validate_payment_start_date: parsed day=' . $day . ', month=' . $month . ', year=' . $year);
+
+    // Validar rango de valores
+    if ($day < 1 || $day > 31 || $month < 1 || $month > 12 || $year < 2020 || $year > 2030) {
+      log_message('debug', 'validate_payment_start_date: fuera de rango - day=' . $day . ', month=' . $month . ', year=' . $year);
+      $this->form_validation->set_message('validate_payment_start_date', 'Fecha fuera de rango válido');
+      return false;
+    }
+
+    // Validar fecha real
+    if (!checkdate($month, $day, $year)) {
+      log_message('debug', 'validate_payment_start_date: fecha inválida por checkdate - ' . $date);
+      $this->form_validation->set_message('validate_payment_start_date', 'Fecha inválida');
+      return false;
+    }
+
+    // Convertir a timestamp para comparación
+    $formatted_date = sprintf('%04d-%02d-%02d', $year, $month, $day);
+    $payment_timestamp = strtotime($formatted_date);
+
+    if ($payment_timestamp === false) {
+      log_message('debug', 'validate_payment_start_date: strtotime falló para formatted_date - ' . $formatted_date);
+      $this->form_validation->set_message('validate_payment_start_date', 'Fecha inválida');
+      return false;
+    }
+
+    log_message('debug', 'validate_payment_start_date: payment_timestamp=' . date('Y-m-d H:i:s', $payment_timestamp));
+
+    // Comparar con fecha de emisión (solo la fecha, no la hora)
+    $emission_datetime = $this->input->post('date');
+    log_message('debug', 'validate_payment_start_date: emission_datetime from POST - ' . $emission_datetime);
+
+    if (!empty($emission_datetime)) {
+      // Extraer solo la fecha de emisión (ignorar hora)
+      $emission_date_only = date('Y-m-d', strtotime($emission_datetime));
+      $emission_date_timestamp = strtotime($emission_date_only);
+
+      log_message('debug', 'validate_payment_start_date: emission_date_only=' . $emission_date_only . ', emission_date_timestamp=' . date('Y-m-d H:i:s', $emission_date_timestamp));
+
+      // Permitir fecha de inicio de cobros igual o posterior a la fecha de emisión
+      if ($emission_date_timestamp !== false && $payment_timestamp < $emission_date_timestamp) {
+        log_message('debug', 'validate_payment_start_date: fecha de cobros anterior a emisión - payment=' . date('Y-m-d', $payment_timestamp) . ' < emission=' . date('Y-m-d', $emission_date_timestamp));
+        $this->form_validation->set_message('validate_payment_start_date', 'La fecha de inicio de cobros no puede ser anterior a la fecha de emisión');
+        return false;
+      }
+    }
+
+    // Validar que no sea demasiado futura (máximo 2 años)
+    date_default_timezone_set('America/Bogota');
+    $max_future = strtotime('+2 years');
+    log_message('debug', 'validate_payment_start_date: max_future=' . date('Y-m-d', $max_future));
+
+    if ($payment_timestamp > $max_future) {
+      log_message('debug', 'validate_payment_start_date: fecha demasiado futura - payment=' . date('Y-m-d', $payment_timestamp) . ' > max_future=' . date('Y-m-d', $max_future));
+      $this->form_validation->set_message('validate_payment_start_date', 'La fecha de inicio de cobros no puede ser posterior a 2 años');
+      return false;
+    }
+
+    log_message('debug', 'validate_payment_start_date: validación PASSED');
     return true;
   }
 
@@ -520,8 +802,10 @@ class Loans extends MY_Controller {
 
     $data['items'] = $this->loans_m->get_loanItems($id);
 
-    $this->load->view('admin/loans/view', $data);
-    log_message('debug', 'Vista de préstamo cargada');
+    // Usar el layout principal para que se apliquen los estilos CSS
+    $data['subview'] = 'admin/loans/view';
+    $this->load->view('admin/_main_layout', $data);
+    log_message('debug', 'Vista de préstamo cargada con layout principal');
   }
 
   public function ajax_calculate_amortization() {
@@ -605,6 +889,7 @@ class Loans extends MY_Controller {
     }
 
     $rate_type = strtolower($this->input->post('tasa_tipo')) ?: 'tna'; // Usar el valor enviado o default TNA
+    log_message('debug', 'rate_type en ajax_calculate_amortization: ' . $rate_type);
 
     $forma_pago = strtolower($this->input->post('payment_m')); // mensual, quincenal...
     if (!in_array($forma_pago, ['mensual', 'quincenal', 'semanal', 'diario'])) {
@@ -624,12 +909,6 @@ class Loans extends MY_Controller {
     }
     log_message('debug', 'Valor de method validado: ' . $method);
 
-    // Validación adicional: para amortización mixta, solo permitir frecuencia quincenal
-    if ($method === 'mixta' && $forma_pago !== 'quincenal') {
-        log_message('error', 'Para amortización mixta, solo se permite frecuencia de pago quincenal');
-        echo json_encode(['success' => false, 'error' => 'Para amortización mixta, solo se permite frecuencia de pago quincenal']);
-        return;
-    }
     if (!in_array($method, ['francesa', 'estaunidense', 'mixta'])) {
         log_message('error', 'Tipo de amortización inválido después de validación: ' . $method);
         echo json_encode(['success' => false, 'error' => 'Debes seleccionar un tipo de amortización válido.']);
@@ -670,62 +949,52 @@ class Loans extends MY_Controller {
     log_message('debug', 'Tasa periódica calculada: ' . $period_rate);
 
     try {
-      // Calcular tabla de amortización usando la librería
-      $amortization_table = $this->amortization->calculate_amortization_table(
-        $monto,
-        $period_rate,
-        $nro_cuotas,
-        $forma_pago,
-        $start_date,
-        $method,
-        $payment_day
-      );
+       // Obtener payment_start_date directamente (ya no necesitamos convertir a día)
+       $payment_start_date_ajax = $this->input->post('payment_start_date');
 
-      // Verificar que se generó la tabla correctamente
-      if (empty($amortization_table)) {
-        throw new Exception('No se pudo generar la tabla de amortización');
+       // Calcular tabla de amortización usando la librería
+       $result = $this->amortization->ajax_calculate_amortization(
+         $monto,
+         $period_rate,
+         $nro_cuotas,
+         $forma_pago,
+         $start_date,
+         $method,
+         $rate_type,
+         $payment_start_date_ajax
+       );
+
+      if ($result['success']) {
+        log_message('info', 'Cálculo de amortización completado exitosamente');
+        // Mapear tabla al formato esperado por el frontend
+        $tabla = [];
+        foreach ($result['amortization_table'] as $row) {
+          $tabla[] = [
+            'periodo' => $row['period'],
+            'fecha' => $row['payment_date'],
+            'cuota' => $row['payment'],
+            'capital' => $row['principal'],
+            'interes' => $row['interest'],
+            'saldo' => $row['balance']
+          ];
+        }
+
+        echo json_encode([
+          'success' => true,
+          'data' => [
+            'cuota' => $result['amortization_table'][0]['payment'] ?? 0,
+            'totalCuotas' => $result['summary']['total_payments'] ?? 0,
+            'totalInteres' => $result['summary']['total_interest'] ?? 0,
+            'totalCapital' => $result['summary']['total_principal'] ?? 0,
+            'nCuotas' => count($result['amortization_table']),
+            'tasa_aplicada' => 'Calculada',
+            'tabla' => $tabla
+          ]
+        ]);
+      } else {
+        log_message('error', 'Error en cálculo AJAX: ' . $result['error']);
+        echo json_encode(['success' => false, 'error' => $result['error']]);
       }
-      log_message('debug', 'Tabla de amortización calculada con ' . count($amortization_table) . ' pagos');
-
-      // Calcular resumen
-      $summary = $this->amortization->calculate_loan_summary($amortization_table);
-
-      // Calcular totales
-      $cuota = $amortization_table[0]['payment'];
-      $totalCuotas = $summary['total_payments'];
-      $totalInteres = $summary['total_interest'];
-      $totalCapital = $summary['total_principal'];
-      $nCuotas = count($amortization_table);
-
-      // Mapear tabla
-      $tabla = [];
-      foreach ($amortization_table as $row) {
-        $tabla[] = [
-          'periodo' => $row['period'],
-          'fecha' => $row['payment_date'],
-          'cuota' => $row['payment'],
-          'capital' => $row['principal'],
-          'interes' => $row['interest'],
-          'saldo' => $row['balance']
-        ];
-      }
-
-      // Preparar data
-      $data = [
-        'cuota' => $cuota,
-        'totalCuotas' => $totalCuotas,
-        'totalInteres' => $totalInteres,
-        'totalCapital' => $totalCapital,
-        'nCuotas' => $nCuotas,
-        'tasa_aplicada' => number_format($period_rate * 100, 4) . '%',
-        'tabla' => $tabla
-      ];
-
-      log_message('info', 'Cálculo de amortización completado exitosamente');
-      echo json_encode([
-        'success' => true,
-        'data' => $data
-      ]);
 
     } catch (Exception $e) {
       log_message('error', 'Error en cálculo de amortización: ' . $e->getMessage());
@@ -747,6 +1016,17 @@ class Loans extends MY_Controller {
       return FALSE;
     }
 
+    // Definir si es edición y obtener loan_id
+    $loan_id = $this->input->get('id');
+    $is_edit = !empty($loan_id);
+
+    // Verificar si tiene préstamo activo para logging
+    $this->db->select('l.id');
+    $this->db->from('loans l');
+    $this->db->where('l.customer_id', $customer_id);
+    $this->db->where('l.status', 1);
+    $active_loan = $this->db->get()->row();
+
     // Obtener tipo_cliente desde DB
     $customer = $this->db->select('tipo_cliente')->where('id', $customer_id)->get('customers')->row();
     log_message('debug', 'Customer query result: ' . json_encode($customer));
@@ -754,24 +1034,28 @@ class Loans extends MY_Controller {
     error_log("tipo_cliente: " . $tipo_cliente);
     log_message('debug', 'Tipo cliente: ' . $tipo_cliente);
 
-    // Obtener estado y balance del préstamo activo
-    $this->db->select('l.status, SUM(COALESCE(li.balance, 0)) as total_balance');
+    // CORRECCIÓN: Verificar si el cliente tiene cuotas pendientes (balance > 0) en préstamos activos
+    // En lugar de solo verificar si tiene un préstamo con status = 1
+    $this->db->select('SUM(COALESCE(li.balance, 0)) as total_pending_balance, COUNT(*) as pending_installments');
     $this->db->from('loans l');
     $this->db->join('loan_items li', 'li.loan_id = l.id', 'left');
     $this->db->where('l.customer_id', $customer_id);
-    $this->db->group_by('l.id');
-    $this->db->having('SUM(COALESCE(li.balance, 0)) > 0');
-    $active_loan = $this->db->get()->row();
-    $has_active_loan = $active_loan ? true : false;
-    if ($has_active_loan) {
-        $this->form_validation->set_message('validate_loan_limit', 'El cliente tiene un préstamo activo. No se permite un nuevo préstamo.');
+    $this->db->where('l.status', 1); // Solo préstamos activos
+    $this->db->where('li.status !=', 0); // Solo cuotas no completamente pagadas
+    $this->db->where('li.extra_payment !=', 3); // Excluir condonadas
+    $pending_check = $this->db->get()->row();
+
+    $has_pending_installments = $pending_check && ($pending_check->total_pending_balance > 0.01 || $pending_check->pending_installments > 0);
+    if ($has_pending_installments) {
+        log_message('debug', 'VALIDATION FAILED: Customer has pending installments');
+        $this->form_validation->set_message('validate_loan_limit', 'El cliente tiene cuotas pendientes de pago. No se permite un nuevo préstamo hasta completar el pago de las cuotas actuales.');
         return FALSE;
     }
-    error_log("active_loan: " . ($active_loan ? 'true' : 'false'));
-    log_message('debug', 'Active loan query result: ' . json_encode($active_loan));
-    log_message('debug', 'VALIDATE_LOAN_LIMIT: has_active_loan check - customer_id=' . $customer_id . ', active_loan=' . json_encode($active_loan));
-    $estado = $active_loan ? $active_loan->status : 'No activo';
-    $balance = $active_loan ? $active_loan->total_balance : 0;
+    error_log("pending_installments: " . ($has_pending_installments ? 'true' : 'false'));
+    log_message('debug', 'Pending installments check result: ' . json_encode($pending_check));
+    log_message('debug', 'VALIDATE_LOAN_LIMIT: pending_installments check - customer_id=' . $customer_id . ', has_pending=' . ($has_pending_installments ? '1' : '0'));
+    $estado = $has_pending_installments ? 'Pendiente' : 'Sin pendientes';
+    $balance = $pending_check ? $pending_check->total_pending_balance : 0;
 
     // Si especial, sin límite
     if ($tipo_cliente == 'especial') {
@@ -827,78 +1111,256 @@ class Loans extends MY_Controller {
   }
 
   /**
-   * Convierte valor de moneda colombiana a número
-   */
-  private function parse_colombian_currency($value) {
-    log_message('debug', 'parse_colombian_currency called with value: ' . $value);
-    if (!is_string($value) || empty($value)) {
-      log_message('debug', 'parse_colombian_currency: value is not string or empty, returning false');
-      return false;
-    }
+    * Convierte valor de moneda colombiana a número
+    */
+   private function parse_colombian_currency($value) {
+     log_message('debug', 'parse_colombian_currency called with value: ' . $value . ', type: ' . gettype($value));
+     if (is_numeric($value)) {
+       log_message('debug', 'parse_colombian_currency: value is numeric, returning as float');
+       return floatval($value);
+     }
+     if (!is_string($value) || empty($value)) {
+       log_message('debug', 'parse_colombian_currency: value is not string or empty, returning false');
+       return false;
+     }
 
-    // Remover símbolos y espacios
-    $value = str_replace(['$', ' '], '', $value);
-    log_message('debug', 'parse_colombian_currency: after remove symbols: ' . $value);
+     // Remover símbolos y espacios
+     $value = str_replace(['$', ' '], '', $value);
+     log_message('debug', 'parse_colombian_currency: after remove symbols: ' . $value);
 
-    // Detectar formato mixto para logs adicionales
-    $has_comma = strpos($value, ',') !== false;
-    $has_dot = strpos($value, '.') !== false;
-    if ($has_comma && $has_dot) {
-      $last_comma_pos = strrpos($value, ',');
-      $last_dot_pos = strrpos($value, '.');
-      if ($last_comma_pos > $last_dot_pos) {
-        log_message('debug', 'parse_colombian_currency: formato mixto detectado, coma como decimal (última coma después de último punto)');
-      } else {
-        log_message('debug', 'parse_colombian_currency: formato mixto detectado, posible error en separadores');
-      }
-    }
+     // Detectar formato mixto para logs adicionales
+     $has_comma = strpos($value, ',') !== false;
+     $has_dot = strpos($value, '.') !== false;
+     if ($has_comma && $has_dot) {
+       $last_comma_pos = strrpos($value, ',');
+       $last_dot_pos = strrpos($value, '.');
+       if ($last_comma_pos > $last_dot_pos) {
+         log_message('debug', 'parse_colombian_currency: formato mixto detectado, coma como decimal (última coma después de último punto)');
+       } else {
+         log_message('debug', 'parse_colombian_currency: formato mixto detectado, posible error en separadores');
+       }
+     }
 
-    // Convertir formato colombiano a numérico
-    $value = str_replace('.', '', $value); // Remover separadores de miles
-    log_message('debug', 'parse_colombian_currency: after remove dots: ' . $value);
-    $value = str_replace(',', '.', $value); // Convertir coma decimal a punto
-    log_message('debug', 'parse_colombian_currency: after replace comma: ' . $value);
+     // Convertir formato colombiano a numérico
+     $value = str_replace('.', '', $value); // Remover separadores de miles
+     log_message('debug', 'parse_colombian_currency: after remove dots: ' . $value);
+     $value = str_replace(',', '.', $value); // Convertir coma decimal a punto
+     log_message('debug', 'parse_colombian_currency: after replace comma: ' . $value);
 
-    $numeric_value = floatval($value);
-    log_message('debug', 'parse_colombian_currency: floatval result: ' . $numeric_value);
+     $numeric_value = floatval($value);
+     log_message('debug', 'parse_colombian_currency: floatval result: ' . $numeric_value);
 
-    $result = is_numeric($numeric_value) ? $numeric_value : false;
-    log_message('debug', 'parse_colombian_currency: final result: ' . $result);
-    return $result;
-  }
+     $result = is_numeric($numeric_value) ? $numeric_value : false;
+     log_message('debug', 'parse_colombian_currency: final result: ' . $result);
+     return $result;
+   }
 
   public function ajax_get_credit_limit() {
     header('Content-Type: application/json');
     $customer_id = $this->input->post('customer_id');
 
-    // Asegurar consistencia: actualizar status de préstamos pagados
-    $this->db->query("UPDATE loans l SET l.status = 0 WHERE l.status = 1 AND (SELECT SUM(COALESCE(li.balance, 0)) FROM loan_items li WHERE li.loan_id = l.id) = 0");
-
-    $this->db->select('l.status');
-    $this->db->from('loans l');
-    $this->db->where('l.customer_id', $customer_id);
-    $this->db->where('l.status', 1);
-    $active_loan = $this->db->get()->row();
-    $has_active_loan = $active_loan ? true : false;
-    if ($has_active_loan) {
-        $limit = 0;
-    } else {
-        $customer = $this->db->select('tipo_cliente')->where('id', $customer_id)->get('customers')->row();
-        $tipo_cliente = $customer ? trim(strtolower($customer->tipo_cliente)) : 'normal';
-        $this->db->select('COUNT(*) as completed_count');
-        $this->db->from('loans l');
-        $this->db->join('loan_items li', 'li.loan_id = l.id', 'left');
-        $this->db->where('l.customer_id', $customer_id);
-        $this->db->group_by('l.id');
-        $this->db->having('SUM(COALESCE(li.balance, 0)) = 0');
-        $completed_query = $this->db->get();
-        $completed_count = $completed_query->num_rows();
-        $limit = $this->loans_m->get_customer_limit($customer_id);
+    if (!$customer_id) {
+      echo json_encode(['error' => 'Customer ID is required']);
+      exit;
     }
-    error_log("AJAX_GET_CREDIT_LIMIT: customer_id=$customer_id -> tipo=$tipo_cliente limit=$limit completed_count=$completed_count");
-    echo json_encode(['limit' => $limit]);
+
+    try {
+      // Asegurar consistencia: actualizar status de préstamos pagados
+      $this->db->query("UPDATE loans l SET l.status = 0 WHERE l.status = 1 AND (SELECT SUM(COALESCE(li.balance, 0)) FROM loan_items li WHERE li.loan_id = l.id) = 0");
+
+      $this->db->select('l.status');
+      $this->db->from('loans l');
+      $this->db->where('l.customer_id', $customer_id);
+      $this->db->where('l.status', 1);
+      $active_loan = $this->db->get()->row();
+      $has_active_loan = $active_loan ? true : false;
+
+      $tipo_cliente = 'normal';
+      $completed_count = 0;
+      $limit = 0;
+
+      if ($has_active_loan) {
+          $limit = 0;
+      } else {
+          $customer = $this->db->select('tipo_cliente')->where('id', $customer_id)->get('customers')->row();
+          $tipo_cliente = $customer ? trim(strtolower($customer->tipo_cliente)) : 'normal';
+          $this->db->select('COUNT(*) as completed_count');
+          $this->db->from('loans l');
+          $this->db->join('loan_items li', 'li.loan_id = l.id', 'left');
+          $this->db->where('l.customer_id', $customer_id);
+          $this->db->group_by('l.id');
+          $this->db->having('SUM(COALESCE(li.balance, 0)) = 0');
+          $completed_query = $this->db->get();
+          $completed_count = $completed_query->num_rows();
+          $limit = $this->loans_m->get_customer_limit($customer_id);
+      }
+      error_log("AJAX_GET_CREDIT_LIMIT: customer_id=$customer_id -> tipo=$tipo_cliente limit=$limit completed_count=$completed_count");
+      echo json_encode(['limit' => $limit]);
+    } catch (Exception $e) {
+      error_log("AJAX_GET_CREDIT_LIMIT ERROR: " . $e->getMessage());
+      echo json_encode(['error' => 'Internal server error']);
+    }
     exit;
   }
+
+  public function ajax_get_current_time() {
+   header('Content-Type: application/json');
+   date_default_timezone_set('America/Bogota');
+
+   $current_time = date('d/m/Y H:i:s'); // Con segundos para tiempo real
+   $timestamp = time();
+   $timezone = 'America/Bogota (UTC-5)';
+
+   error_log("ajax_get_current_time called - Time: $current_time, Timestamp: $timestamp");
+
+   echo json_encode([
+     'current_time' => $current_time,
+     'timestamp' => $timestamp,
+     'timezone' => $timezone
+   ]);
+   exit;
+ }
+
+ /**
+  * Obtiene cuotas de un préstamo para pago personalizado
+  */
+ public function ajax_get_loan_quotas() {
+   header('Content-Type: application/json');
+
+   try {
+     $loan_id = $this->input->post('loan_id');
+
+     if (!$loan_id || !is_numeric($loan_id)) {
+       throw new Exception('ID de préstamo inválido');
+     }
+
+     // Verificar que el préstamo existe y está activo
+     $loan = $this->loans_m->get_loan($loan_id);
+     if (!$loan || $loan->status != 1) {
+       throw new Exception('Préstamo no encontrado o inactivo');
+     }
+
+     // Obtener cuotas del préstamo
+     $quotas = $this->loans_m->get_loanItems($loan_id);
+
+     // Filtrar y formatear cuotas
+     $formatted_quotas = [];
+     foreach ($quotas as $quota) {
+       // Solo incluir cuotas que no estén completamente pagadas (status != 0)
+       if ($quota->status != 0) {
+         $formatted_quotas[] = [
+           'id' => $quota->id,
+           'loan_id' => $quota->loan_id,
+           'num_quota' => $quota->num_quota,
+           'date' => $quota->date,
+           'fee_amount' => $quota->fee_amount,
+           'interest_amount' => $quota->interest_amount,
+           'capital_amount' => $quota->capital_amount,
+           'balance' => $quota->balance,
+           'status' => $quota->status
+         ];
+       }
+     }
+
+     echo json_encode([
+       'success' => true,
+       'data' => $formatted_quotas
+     ]);
+
+   } catch (Exception $e) {
+     echo json_encode([
+       'success' => false,
+       'error' => $e->getMessage()
+     ]);
+   }
+
+   exit;
+ }
+
+ /**
+  * Procesa pago personalizado aplicando monto secuencialmente a cuotas seleccionadas
+  */
+ public function ajax_custom_payment() {
+   header('Content-Type: application/json');
+
+   try {
+     // Validar método POST
+     if (!$this->input->is_ajax_request() || $this->input->method() !== 'post') {
+       throw new Exception('Método no permitido');
+     }
+
+     // Obtener y validar parámetros
+     $loan_item_ids = $this->input->post('loan_item_ids');
+     $custom_amount = floatval($this->input->post('custom_amount'));
+     $payment_description = trim($this->input->post('payment_description', true));
+
+     // Validaciones básicas
+     if (empty($loan_item_ids) || !is_array($loan_item_ids)) {
+       throw new Exception('Debe seleccionar al menos una cuota');
+     }
+
+     if ($custom_amount <= 0) {
+       throw new Exception('El monto debe ser un número positivo mayor a 0');
+     }
+
+     if (strlen($payment_description) > 255) {
+       throw new Exception('La descripción no puede exceder 255 caracteres');
+     }
+
+     $loan_id = $this->input->post('loan_id');
+     if (!$loan_id || !is_numeric($loan_id)) {
+       throw new Exception('ID de préstamo inválido');
+     }
+
+     // Usar la nueva librería PaymentCalculator para procesamiento preciso
+     $selected_installments = [];
+     foreach ($loan_item_ids as $item_id) {
+       $selected_installments[] = ['id' => $item_id];
+     }
+
+     $result = $this->paymentcalculator->process_custom_payment(
+       $loan_id,
+       $selected_installments,
+       $custom_amount,
+       $payment_description
+     );
+
+     // Generar audit trail
+     $this->paymentcalculator->generate_audit_trail($loan_id, [
+       'total_payment_amount' => $custom_amount,
+       'payment_breakdown' => $result['payment_breakdown'],
+       'redistribution_log' => $result['redistribution_log']
+     ]);
+
+     if ($result['success']) {
+       echo json_encode([
+         'success' => true,
+         'message' => $result['message'],
+         'data' => [
+           'total_processed' => $result['total_processed'],
+           'remaining_amount' => $result['remaining_amount'],
+           'breakdown' => $result['payment_breakdown'],
+           'redistribution_log' => $result['redistribution_log']
+         ]
+       ]);
+     } else {
+       echo json_encode([
+         'success' => false,
+         'error' => $result['message']
+       ]);
+     }
+
+   } catch (Exception $e) {
+     log_message('error', 'Error en ajax_custom_payment: ' . $e->getMessage());
+
+     echo json_encode([
+       'success' => false,
+       'error' => $e->getMessage()
+     ]);
+   }
+
+   exit;
+ }
 
   /**
    * Genera y descarga PDF de la tabla de amortización

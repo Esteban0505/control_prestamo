@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit bootstrap="bootstrap.php"
+         colors="true"
+         verbose="true"
+         stopOnFailure="false">
+    <testsuites>
+        <testsuite name="Payments Tests">
+            <file>PaymentsControllerTest.php</file>
+            <file>PaymentsModelTest.php</file>
+        </testsuite>
+    </testsuites>
+    <filter>
+        <whitelist>
+            <directory suffix=".php">../controllers/admin</directory>
+            <directory suffix=".php">../models</directory>
+        </whitelist>
+    </filter>
+</phpunit>

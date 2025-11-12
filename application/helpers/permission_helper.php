@@ -81,32 +81,21 @@ if (!function_exists('can_view')) {
               }
               $CI->session->set_userdata('permissions', $permissions_array);
 
-              // Buscar el permiso específico
+              // Buscar el permiso específico - SI EXISTE EN BD, USARLO
               if (isset($permissions_array[$section])) {
                   $result = (bool) $permissions_array[$section];
                   error_log("[DIAGNOSTIC] can_view: found permission in DB for '$section', returning " . ($result ? 'true' : 'false'));
                   return $result;
               }
-          }
 
-          // Si no hay permisos granulares explícitos, usar permisos por defecto del rol
-          error_log("[DIAGNOSTIC] can_view: no granular permission found for '$section', using role defaults");
-          $default_permissions = [
-              'admin' => [
-                  'dashboard' => true, 'sidebar' => true, 'sidebar_back' => true, 'customers' => true, 'coins' => true, 'loans' => true, 'payments' => true, 'reports' => true, 'config' => true
-              ],
-              'operador' => [
-                  'dashboard' => true, 'sidebar' => true, 'sidebar_back' => true, 'customers' => true, 'coins' => true, 'loans' => true, 'payments' => true, 'reports' => true, 'config' => false
-              ],
-              'viewer' => [
-                  'dashboard' => true, 'sidebar' => true, 'sidebar_back' => true, 'customers' => false, 'coins' => false, 'loans' => false, 'payments' => false, 'reports' => true, 'config' => false
-              ]
-          ];
+              // Si el permiso no existe en BD, retornar false (no usar defaults por rol)
+              error_log("[DIAGNOSTIC] can_view: permission '$section' not found in DB, returning false");
+              return false;
+}
 
-          $role_defaults = isset($default_permissions[$user_role]) ? $default_permissions[$user_role] : $default_permissions['viewer'];
-          $result = isset($role_defaults[$section]) ? $role_defaults[$section] : false;
-          error_log("[DIAGNOSTIC] can_view: role default for '$section' = " . ($result ? 'true' : 'false'));
-          return $result;
+// Si no hay user_id (no logueado), retornar false
+error_log("[DIAGNOSTIC] can_view: no user_id, returning false");
+return false;
       }
   }
 

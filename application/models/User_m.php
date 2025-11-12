@@ -35,10 +35,10 @@ class User_m extends MY_Model {
     ),
     array(
       'field' => 'perfil',
-      'rules' => 'trim|required|in_list[admin,operador,viewer]',
+      'rules' => 'trim|required|in_list[admin,Colaborador,Visitante]',
       'errors' => array(
         'required' => 'El perfil es requerido',
-        'in_list' => 'El perfil debe ser admin, operador o viewer',
+        'in_list' => 'El perfil debe ser admin, Colaborador o Visitante',
       ),
     ),
     array(
@@ -378,23 +378,28 @@ class User_m extends MY_Model {
 
     error_log("[DIAGNOSTIC] get_permissions: found " . count($permissions) . " permissions in DB");
 
-    // Si no hay permisos, devolver permisos por defecto SIN guardarlos en BD
-    // Solo guardar permisos cuando el usuario los configure explícitamente
-    if (empty($permissions)) {
-      error_log("[DIAGNOSTIC] get_permissions: no permissions in DB, using defaults");
-      $user = $this->get_user($user_id);
-      if ($user) {
-        $user_role = isset($user->role) ? $user->role : $user->perfil;
-        $default_permissions = $this->get_permissions_by_role($user_role);
-        foreach ($default_permissions as $name => $value) {
-          $permissions[] = ['permission_name' => $name, 'value' => (int) $value];
-          error_log("[DIAGNOSTIC] get_permissions: default permission $name = $value");
-        }
-      }
+    // ✅ CORREGIDO: Asegurar que TODOS los permisos posibles estén en la respuesta
+    // Si faltan permisos en BD, incluirlos con valor 0
+    $all_possible_permissions = [
+        'dashboard', 'sidebar', 'sidebar_back',
+        'customers', 'customers_list', 'customers_overdue',
+        'coins', 'loans', 'payments',
+        'reports', 'reports_collector_commissions', 'reports_admin_commissions', 'reports_general_customer',
+        'config', 'config_edit_data', 'config_change_password'
+    ];
+
+    $complete_permissions = [];
+    $db_permissions = array_column($permissions, 'value', 'permission_name');
+
+    foreach ($all_possible_permissions as $perm_name) {
+        $complete_permissions[] = [
+            'permission_name' => $perm_name,
+            'value' => isset($db_permissions[$perm_name]) ? (int)$db_permissions[$perm_name] : 0
+        ];
     }
 
-    error_log("[DIAGNOSTIC] get_permissions: returning " . count($permissions) . " permissions");
-    return $permissions;
+    error_log("[DIAGNOSTIC] get_permissions: returning " . count($complete_permissions) . " complete permissions");
+    return $complete_permissions;
   }
 
   /**
@@ -497,7 +502,7 @@ class User_m extends MY_Model {
         'reports' => true,
         'config' => true
       ],
-      'operador' => [
+      'Colaborador' => [
         'dashboard' => true,
         'sidebar' => true,
         'sidebar_back' => false,
@@ -508,7 +513,7 @@ class User_m extends MY_Model {
         'reports' => true,
         'config' => false
       ],
-      'viewer' => [
+      'Visitante' => [
         'dashboard' => true,
         'sidebar' => false,
         'sidebar_back' => false,
@@ -521,7 +526,7 @@ class User_m extends MY_Model {
       ]
     ];
     
-    return isset($permissions[$role]) ? $permissions[$role] : $permissions['viewer'];
+    return isset($permissions[$role]) ? $permissions[$role] : $permissions['Visitante'];
   }
   /**
    * Crea la tabla user_permissions si no existe

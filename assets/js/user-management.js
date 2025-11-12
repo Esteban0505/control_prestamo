@@ -135,13 +135,27 @@ function setupEventHandlers() {
 }
 
 /**
- * Actualizar permisos según el rol seleccionado
+ * ✅ CORREGIDO: Actualizar permisos según el rol seleccionado (incluyendo submenús)
  */
 function updatePermissionsForRole(role) {
     var rolePermissions = {
-        'admin': ['dashboard', 'sidebar', 'sidebar_back', 'customers', 'coins', 'loans', 'payments', 'reports', 'config'],
-        'operador': ['dashboard', 'sidebar', 'sidebar_back', 'customers', 'loans', 'payments', 'reports'],
-        'viewer': ['dashboard', 'sidebar', 'reports']
+        'admin': [
+            'dashboard', 'sidebar', 'sidebar_back',
+            'customers', 'customers_list', 'customers_overdue',
+            'coins', 'loans', 'payments',
+            'reports', 'reports_collector_commissions', 'reports_admin_commissions', 'reports_general_customer',
+            'config', 'config_edit_data', 'config_change_password'
+        ],
+        'Colaborador': [
+            'dashboard', 'sidebar', 'sidebar_back',
+            'customers', 'customers_list', 'customers_overdue',
+            'loans', 'payments',
+            'reports', 'reports_collector_commissions', 'reports_admin_commissions', 'reports_general_customer'
+        ],
+        'Visitante': [
+            'dashboard', 'sidebar',
+            'reports', 'reports_general_customer'
+        ]
     };
 
     var perms = rolePermissions[role] || [];
@@ -216,7 +230,14 @@ function updatePermissionsForRole(role) {
  function savePermissions() {
      var userId = $('#permissionsModal').data('user-id');
 
-     var allPermissions = ['dashboard', 'sidebar', 'sidebar_back', 'customers', 'coins', 'loans', 'payments', 'reports', 'config'];
+     // ✅ CORREGIDO: Incluir TODOS los permisos principales Y submenús
+     var allPermissions = [
+         'dashboard', 'sidebar', 'sidebar_back',
+         'customers', 'customers_list', 'customers_overdue',
+         'coins', 'loans', 'payments',
+         'reports', 'reports_collector_commissions', 'reports_admin_commissions', 'reports_general_customer',
+         'config', 'config_edit_data', 'config_change_password'
+     ];
      var checkedPermissions = [];
 
      $('#permissionsModal input[name="permisos[]"]:checked').each(function() {
@@ -291,15 +312,15 @@ function toggleUserState($btn) {
                     $badge.removeClass('badge-danger').addClass('badge-success').text('Activo');
                     $btn.removeClass('btn-success').addClass('btn-warning')
                         .data('current-state', 1)
-                        .attr('title', 'Desactivar')
-                        .html('<i class="fas fa-toggle-on text-danger"></i> Desactivar');
+                        .attr('title', 'Desactivar Usuario')
+                        .html('<i class="fas fa-user-check fa-sm text-white"></i>');
                 } else {
                     // Usuario desactivado
                     $badge.removeClass('badge-success').addClass('badge-danger').text('Inactivo');
                     $btn.removeClass('btn-warning').addClass('btn-success')
                         .data('current-state', 0)
-                        .attr('title', 'Activar')
-                        .html('<i class="fas fa-toggle-off text-success"></i> Activar');
+                        .attr('title', 'Activar Usuario')
+                        .html('<i class="fas fa-user-times fa-sm text-white"></i>');
                 }
                 
                 // Mostrar mensaje de confirmación

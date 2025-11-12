@@ -53,7 +53,6 @@
             </th>
             <th>Cliente</th>
             <th>Cédula</th>
-            <th>Tel. Fijo</th>
             <th>Préstamo</th>
             <th>Monto Original</th>
             <th>Progreso</th>
@@ -145,25 +144,39 @@ document.addEventListener('DOMContentLoaded', function() {
     pageLength: 10,
     lengthMenu: [[10, 20, 50, -1], [10, 20, 50, "Todos"]],
     language: {
-      url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/es-ES.json',
-      lengthMenu: "Mostrar _MENU_ registros por página",
-      zeroRecords: "No se encontraron resultados",
-      info: "Mostrando página _PAGE_ de _PAGES_",
-      infoEmpty: "No hay registros disponibles",
-      infoFiltered: "(filtrado de _MAX_ registros totales)",
-      search: "Buscar:",
-      paginate: {
-        first: "Primero",
-        last: "Último",
-        next: "Siguiente",
-        previous: "Anterior"
+      "sProcessing": "Procesando...",
+      "sLengthMenu": "Mostrar _MENU_ registros por página",
+      "sZeroRecords": "No se encontraron resultados",
+      "sEmptyTable": "Ningún dato disponible en esta tabla",
+      "sInfo": "Mostrando página _PAGE_ de _PAGES_",
+      "sInfoEmpty": "No hay registros disponibles",
+      "sInfoFiltered": "(filtrado de _MAX_ registros totales)",
+      "sInfoPostFix": "",
+      "sSearch": "Buscar:",
+      "sUrl": "",
+      "sInfoThousands": ",",
+      "sLoadingRecords": "Cargando...",
+      "oPaginate": {
+        "sFirst": "Primero",
+        "sLast": "Último",
+        "sNext": "Siguiente",
+        "sPrevious": "Anterior"
+      },
+      "oAria": {
+        "sSortAscending": ": Activar para ordenar la columna de manera ascendente",
+        "sSortDescending": ": Activar para ordenar la columna de manera descendente"
+      },
+      "buttons": {
+        "copy": "Copiar",
+        "colvis": "Visibilidad"
       }
     },
     columnDefs: [
       { orderable: false, targets: [0] }, // Checkbox column not orderable
-      { orderable: true, targets: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
-      { searchable: true, targets: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] }, // Skip checkbox column for search
-      { className: "text-center", targets: [0, 5, 6] } // Center align checkbox, progress, and payments columns
+      { orderable: true, targets: [1, 2, 3, 4, 5, 7, 8, 9] },
+      { searchable: true, targets: [1, 2, 3, 4, 5, 7, 8, 9] }, // Skip checkbox column for search
+      { className: "text-center", targets: [0, 4, 5] }, // Center align checkbox, progress, and payments columns
+      { visible: false, targets: [6] } // Ocultar columna "Pagos Realizados"
     ],
     order: [[0, 'asc']],
     dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>rt<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>'
@@ -246,7 +259,6 @@ document.addEventListener('DOMContentLoaded', function() {
           '<input type="checkbox" class="commission-checkbox" data-client-id="' + (client.customer_id || index) + '" data-loan-id="' + client.loan_id + '" data-interest="' + (client.total_interest_paid || 0) + '" data-commission="' + (client.interest_commission_40 || 0) + '">',
           client.customer_name || client.client_name || '',
           client.dni || client.client_cedula || '',
-          client.phone_fixed || 'N/A',
           client.loan_id || '',
           '$' + formatNumber(client.credit_amount || client.loan_amount || 0),
           client.progress || '0/0',

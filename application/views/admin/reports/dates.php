@@ -11,8 +11,8 @@
   <div class="card-body">
     <!-- Información informativa -->
     <div class="alert alert-info mb-4">
-      <h6><i class="fas fa-info-circle"></i> 💼 Panel de Control Administrativo</h6>
-      <p class="mb-0">Aquí puedes ver el estado de envío de comisiones del 40% de todos los cobradores. Los estados se actualizan automáticamente cuando los cobradores marcan sus envíos como completados.</p>
+      <h6><i class="fas fa-info-circle"></i> 💼 Panel de Control Administrativo - Comisiones Enviadas</h6>
+      <p class="mb-0">Esta sección muestra <strong>únicamente las comisiones que han sido enviadas</strong> por los cobradores. Utiliza el botón "Ver" para consultar los detalles de cada préstamo enviado, incluyendo información del cliente, monto del préstamo, pagos realizados y fecha de envío.</p>
     </div>
 
     <!-- Filtros -->
@@ -51,9 +51,10 @@
           <tr>
             <th>Cobrador</th>
             <th class="text-right">Interés Total</th>
+            <th class="text-center">N°Préstamo</th>
             <th class="text-right">Comisión 40%</th>
             <th class="text-center">Estado Envío</th>
-            <th class="text-center">Fecha Último Pago</th>
+            <th class="text-center">Fecha de Envío</th>
             <th class="text-center">Acciones</th>
           </tr>
         </thead>
@@ -81,8 +82,8 @@
                 <span id="completed_sends" class="text-success h5">0</span>
               </div>
               <div class="col-sm-3">
-                <strong>Pendientes:</strong><br>
-                <span id="pending_sends" class="text-warning h5">0</span>
+                <strong>Total Enviados:</strong><br>
+                <span id="pending_sends" class="text-info h5">0</span>
               </div>
               <div class="col-sm-3">
                 <strong>Total a Pagar:</strong><br>
@@ -176,7 +177,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
       }
 
-      updateTable(response.collectors || []);
+      updateTable(response.loans || []);
       updateSummary(response.summary || {});
     })
     .catch(error => {
@@ -190,20 +191,26 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Función para actualizar tabla
-  function updateTable(collectors) {
+  // Función para actualizar tabla - ahora muestra cada préstamo como fila separada
+  function updateTable(loans) {
     let html = '';
-    if (collectors && collectors.length > 0) {
-      collectors.forEach(function(collector) {
+    if (loans && loans.length > 0) {
+      loans.forEach(function(loan) {
+        const sentDate = loan.sent_at ? new Date(loan.sent_at).toLocaleDateString('es-CO') + ' ' + new Date(loan.sent_at).toLocaleTimeString('es-CO', {hour: '2-digit', minute: '2-digit'}) : 'N/A';
         html += `
           <tr>
-            <td>${collector.collector_name || ''}</td>
-            <td class="text-right">${collector.total_interest_formatted || '$0'}</td>
-            <td class="text-right">${collector.commission_40_formatted || '$0'}</td>
-            <td class="text-center">${collector.status_badge || '<span class="badge badge-warning">Pendiente</span>'}</td>
-            <td class="text-center">${collector.last_payment_date ? new Date(collector.last_payment_date).toLocaleDateString('es-CO') : 'N/A'}</td>
+            <td>${loan.collector_name || ''}</td>
+            <td class="text-right">${loan.total_interest_formatted || '$0'}</td>
+            <td class="text-center"><span class="badge badge-info">#${loan.loan_id || 'N/A'}</span></td>
+            <td class="text-right">${loan.commission_40_formatted || '$0'}</td>
+            <td class="text-center">${loan.status_badge || '<span class="badge badge-warning">Pendiente</span>'}</td>
+            <td class="text-center">${sentDate}</td>
             <td class="text-center">
-              <button class="btn btn-sm btn-info view-details" data-collector-id="${collector.collector_id}" data-collector-name="${collector.collector_name}">
+              <button class="btn btn-sm btn-info view-loan-details" 
+                      data-loan-id="${loan.loan_id}" 
+                      data-commission-id="${loan.commission_id}"
+                      data-collector-id="${loan.collector_id}"
+                      data-collector-name="${loan.collector_name}">
                 <i class="fas fa-eye"></i> Ver
               </button>
             </td>
@@ -211,16 +218,18 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
       });
     } else {
-      html = '<tr><td colspan="6" class="text-center">No hay datos disponibles para el período seleccionado</td></tr>';
+      html = '<tr><td colspan="7" class="text-center">No hay datos disponibles para el período seleccionado</td></tr>';
     }
     document.getElementById('commissionsTableBody').innerHTML = html;
 
     // Agregar event listeners para los botones "Ver"
-    document.querySelectorAll('.view-details').forEach(button => {
+    document.querySelectorAll('.view-loan-details').forEach(button => {
       button.addEventListener('click', function() {
+        const loanId = this.getAttribute('data-loan-id');
+        const commissionId = this.getAttribute('data-commission-id');
         const collectorId = this.getAttribute('data-collector-id');
         const collectorName = this.getAttribute('data-collector-name');
-        showCollectorDetails(collectorId, collectorName);
+        showLoanDetails(loanId, commissionId, collectorId, collectorName);
       });
     });
   }
@@ -228,12 +237,143 @@ document.addEventListener('DOMContentLoaded', function() {
   // Función para actualizar resumen
   function updateSummary(summary) {
     document.getElementById('total_collectors').textContent = summary.total_collectors || 0;
-    document.getElementById('completed_sends').textContent = summary.completed_sends || 0;
+    document.getElementById('completed_sends').textContent = summary.completed_sends || summary.total_loans || 0;
     document.getElementById('pending_sends').textContent = summary.pending_sends || 0;
     document.getElementById('total_to_pay').textContent = '$' + formatNumber(summary.total_to_pay || 0);
   }
 
-  // Función para mostrar detalles del cobrador
+  // Función para mostrar detalles de un préstamo específico
+  function showLoanDetails(loanId, commissionId, collectorId, collectorName) {
+    console.log('Mostrando detalles para préstamo:', loanId, 'Comisión:', commissionId);
+
+    // Actualizar título del modal
+    document.getElementById('detailsModalLabel').textContent = `Resumen Préstamo #${loanId} - ${collectorName}`;
+
+    // Mostrar modal con indicador de carga
+    document.getElementById('detailsModalBody').innerHTML = `
+      <div class="text-center">
+        <i class="fas fa-spinner fa-spin fa-2x"></i>
+        <p class="mt-2">Cargando detalles del préstamo...</p>
+      </div>
+    `;
+    $('#detailsModal').modal('show');
+
+    // Obtener fechas actuales para el filtro
+    const startDate = document.getElementById('start_date').value;
+    const endDate = document.getElementById('end_date').value;
+
+    // Hacer petición AJAX para obtener detalles de un préstamo específico
+    fetch('<?php echo site_url('admin/reports/get_sent_commissions_details'); ?>?' + new URLSearchParams({
+      user_id: collectorId,
+      loan_id: loanId,
+      commission_id: commissionId,
+      start_date: startDate || '',
+      end_date: endDate || ''
+    }), {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+    })
+    .then(response => {
+      console.log('Respuesta detalles HTTP:', response.status, response.statusText);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log('Datos de detalles recibidos:', data);
+
+      if (data.error) {
+        document.getElementById('detailsModalBody').innerHTML = `
+          <div class="alert alert-danger">
+            <i class="fas fa-exclamation-triangle"></i> Error: ${data.error}
+          </div>
+        `;
+        return;
+      }
+
+      // Buscar el préstamo específico
+      const loan = data.commissions && data.commissions.length > 0 
+        ? data.commissions.find(c => c.loan_id == loanId) || data.commissions[0]
+        : null;
+
+      if (!loan) {
+        document.getElementById('detailsModalBody').innerHTML = `
+          <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle"></i> No se encontró información del préstamo #${loanId}.
+          </div>
+        `;
+        return;
+      }
+
+      // Construir contenido del modal con resumen del préstamo
+      const sentDate = loan.sent_at ? new Date(loan.sent_at).toLocaleDateString('es-CO') + ' ' + new Date(loan.sent_at).toLocaleTimeString('es-CO', {hour: '2-digit', minute: '2-digit'}) : 'N/A';
+      
+      let html = `
+        <div class="row mb-4">
+          <div class="col-md-12">
+            <div class="card border-primary">
+              <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-file-invoice-dollar"></i> Información del Préstamo</h5>
+              </div>
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-md-6">
+                    <p><strong>N° Préstamo:</strong> <span class="badge badge-info">#${loan.loan_id || 'N/A'}</span></p>
+                    <p><strong>Cliente:</strong> ${loan.client_name || 'N/A'}</p>
+                    <p><strong>Cédula:</strong> ${loan.client_cedula || 'N/A'}</p>
+                    <p><strong>Monto del Préstamo:</strong> $ ${formatNumber(loan.credit_amount || 0)}</p>
+                    <p><strong>Número de Cuotas:</strong> ${loan.num_fee || 'N/A'}</p>
+                  </div>
+                  <div class="col-md-6">
+                    <p><strong>Interés Total Pagado:</strong> <span class="text-primary h5">$ ${formatNumber(loan.total_interest_paid || loan.amount || 0)}</span></p>
+                    <p><strong>Comisión 40%:</strong> <span class="text-success h5">$ ${formatNumber(loan.commission || 0)}</span></p>
+                    <p><strong>Pagos Realizados:</strong> ${loan.payments_made || 0}</p>
+                    <p><strong>Estado:</strong> <span class="badge badge-success">Enviado</span></p>
+                    <p><strong>Fecha de Envío:</strong> ${sentDate}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Información adicional del cliente si está disponible
+      if (loan.phone_fixed || loan.address) {
+        html += `
+          <div class="row mb-4">
+            <div class="col-md-12">
+              <div class="card border-info">
+                <div class="card-header bg-info text-white">
+                  <h6 class="mb-0"><i class="fas fa-user"></i> Información del Cliente</h6>
+                </div>
+                <div class="card-body">
+                  ${loan.phone_fixed ? `<p><strong>Teléfono:</strong> ${loan.phone_fixed}</p>` : ''}
+                  ${loan.address ? `<p><strong>Dirección:</strong> ${loan.address}</p>` : ''}
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      document.getElementById('detailsModalBody').innerHTML = html;
+    })
+    .catch(error => {
+      console.error('Error al cargar detalles:', error);
+      document.getElementById('detailsModalBody').innerHTML = `
+        <div class="alert alert-danger">
+          <i class="fas fa-exclamation-triangle"></i> Error al cargar los detalles: ${error.message}
+        </div>
+      `;
+    });
+  }
+
+  // Función para mostrar detalles del cobrador (mantener por compatibilidad)
   function showCollectorDetails(collectorId, collectorName) {
     console.log('Mostrando detalles para cobrador:', collectorId, collectorName);
 
@@ -253,8 +393,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const startDate = document.getElementById('start_date').value;
     const endDate = document.getElementById('end_date').value;
 
-    // Hacer petición AJAX para obtener detalles
-    fetch('<?php echo site_url('admin/reports/get_user_interest_details'); ?>?' + new URLSearchParams({
+    // Hacer petición AJAX para obtener detalles de comisiones enviadas
+    fetch('<?php echo site_url('admin/reports/get_sent_commissions_details'); ?>?' + new URLSearchParams({
       user_id: collectorId,
       start_date: startDate || '',
       end_date: endDate || ''
@@ -301,7 +441,7 @@ document.addEventListener('DOMContentLoaded', function() {
           <div class="col-md-6">
             <div class="card border-success">
               <div class="card-body text-center">
-                <h5 class="card-title text-success">Comisión 40%</h5>
+                <h5 class="card-title text-success">Comisión 40% Total</h5>
                 <h3 class="text-success">$ ${formatNumber(data.total_commission || 0)}</h3>
               </div>
             </div>
@@ -309,48 +449,43 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
       `;
 
-      // Estado de envío
-      const statusClass = data.send_status === 'enviado' ? 'success' : 'warning';
-      const statusText = data.send_status === 'enviado' ? 'Enviado' : 'Pendiente';
+      // Información de envío
       html += `
-        <div class="alert alert-${statusClass} mb-4">
-          <h6><i class="fas fa-info-circle"></i> Estado de Envío</h6>
-          <p class="mb-0">Estado actual: <strong>${statusText}</strong></p>
+        <div class="alert alert-success mb-4">
+          <h6><i class="fas fa-check-circle"></i> Estado: <strong>Enviado</strong></h6>
+          <p class="mb-0">Total de préstamos enviados: <strong>${data.count || 0}</strong></p>
         </div>
       `;
 
-      // Tabla de clientes
-      if (data.clients && data.clients.length > 0) {
+      // Resumen de préstamos enviados
+      if (data.commissions && data.commissions.length > 0) {
         html += `
-          <h6>Detalles por Cliente:</h6>
+          <h6><i class="fas fa-list"></i> Resumen de Préstamos Enviados (${data.count || 0} préstamos):</h6>
           <div class="table-responsive">
-            <table class="table table-striped table-bordered">
+            <table class="table table-striped table-bordered table-sm">
               <thead class="table-dark">
                 <tr>
+                  <th>ID Préstamo</th>
                   <th>Cliente</th>
                   <th>Cédula</th>
-                  <th>ID Préstamo</th>
-                  <th>Monto Original</th>
-                  <th>Pagos Realizados</th>
-                  <th>Interés Pagado</th>
-                  <th>Comisión 40%</th>
-                  <th>Último Pago</th>
+                  <th class="text-right">Monto Préstamo</th>
+                  <th class="text-right">Comisión 40%</th>
+                  <th class="text-center">Fecha Envío</th>
                 </tr>
               </thead>
               <tbody>
         `;
 
-        data.clients.forEach(client => {
+        data.commissions.forEach(comm => {
+          const sentDate = comm.sent_at ? new Date(comm.sent_at).toLocaleDateString('es-CO') + ' ' + new Date(comm.sent_at).toLocaleTimeString('es-CO', {hour: '2-digit', minute: '2-digit'}) : 'N/A';
           html += `
             <tr>
-              <td>${client.customer_name || 'N/A'}</td>
-              <td>${client.dni || 'N/A'}</td>
-              <td>${client.loan_id || 'N/A'}</td>
-              <td class="text-right">$ ${formatNumber(client.credit_amount || 0)}</td>
-              <td class="text-center">${client.payments_made || 0}</td>
-              <td class="text-right">$ ${formatNumber(client.total_interest_paid || 0)}</td>
-              <td class="text-right">$ ${formatNumber(client.interest_commission_40 || 0)}</td>
-              <td class="text-center">${client.last_payment_date ? new Date(client.last_payment_date).toLocaleDateString('es-CO') : 'N/A'}</td>
+              <td class="text-center"><span class="badge badge-info">#${comm.loan_id || 'N/A'}</span></td>
+              <td><strong>${comm.client_name || 'N/A'}</strong></td>
+              <td>${comm.client_cedula || 'N/A'}</td>
+              <td class="text-right">$ ${formatNumber(comm.credit_amount || 0)}</td>
+              <td class="text-right"><strong class="text-success">$ ${formatNumber(comm.commission || 0)}</strong></td>
+              <td class="text-center"><small>${sentDate}</small></td>
             </tr>
           `;
         });
@@ -362,8 +497,8 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
       } else {
         html += `
-          <div class="alert alert-info">
-            <i class="fas fa-info-circle"></i> No hay detalles de clientes disponibles para este período.
+          <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle"></i> No hay comisiones enviadas para este cobrador en el período seleccionado.
           </div>
         `;
       }

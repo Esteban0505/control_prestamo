@@ -84,8 +84,8 @@
                             required>
                         <option value="">Seleccione un perfil</option>
                         <option value="admin" <?= set_select('perfil', 'admin', isset($user) && $user->perfil == 'admin') ?>>Administrador</option>
-                        <option value="viewer" <?= set_select('perfil', 'viewer', isset($user) && $user->perfil == 'viewer') ?>>Viewer</option>
-                        <option value="operador" <?= set_select('perfil', 'operador', isset($user) && $user->perfil == 'operador') ?>>Operador</option>
+                        <option value="Visitante" <?= set_select('perfil', 'Visitante', isset($user) && $user->perfil == 'Visitante') ?>>Visitante</option>
+                        <option value="Colaborador" <?= set_select('perfil', 'Colaborador', isset($user) && $user->perfil == 'Colaborador') ?>>Colaborador</option>
                     </select>
                     <div class="invalid-feedback">
                         <?= form_error('perfil') ?>

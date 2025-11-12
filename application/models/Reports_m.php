@@ -307,17 +307,117 @@ class Reports_m extends CI_Model {
   }
 
   /**
-    * Reporte de comisiones por cobrador
-    */
-   public function get_commissions_by_user()
-   {
-     $this->db->select('u.id, CONCAT(u.first_name, " ", u.last_name) AS user_name, SUM(cc.commission) AS total_commission, COUNT(cc.id) AS payments_count');
-     $this->db->from('collector_commissions cc');
-     $this->db->join('users u', 'u.id = cc.user_id', 'left');
-     $this->db->group_by('cc.user_id');
-     $this->db->order_by('total_commission', 'DESC');
-     return $this->db->get()->result();
-   }
+   * Reporte de comisiones por cobrador - MOSTRAR TODOS LOS COBRADORES
+   * Usa datos reales de collector_commissions y loan_interest_logs
+   */
+  public function get_interest_commissions($start_date = null, $end_date = null) {
+      log_message('debug', 'Reports_m::get_interest_commissions - INICIO - start_date: ' . ($start_date ?: 'null') . ', end_date: ' . ($end_date ?: 'null'));
+
+      // DEBUG: Verificar total de cobradores en la BD
+      $this->db->select('COUNT(*) as total_cobradores');
+      $this->db->from('users');
+      $this->db->where('role', 'cobrador');
+      $total_cobradores = $this->db->get()->row()->total_cobradores ?? 0;
+      log_message('debug', 'Reports_m::get_interest_commissions - Total cobradores en BD: ' . $total_cobradores);
+
+      // DEBUG: Verificar datos en collector_commissions
+      $this->db->select('COUNT(*) as total_commissions, SUM(amount) as total_amount, SUM(commission) as total_commission');
+      $this->db->from('collector_commissions');
+      $commissions_data = $this->db->get()->row();
+      log_message('debug', 'Reports_m::get_interest_commissions - Datos en collector_commissions: ' .
+                 'Total: ' . ($commissions_data->total_commissions ?? 0) .
+                 ', Amount: $' . number_format($commissions_data->total_amount ?? 0, 2) .
+                 ', Commission: $' . number_format($commissions_data->total_commission ?? 0, 2));
+
+      // CAMBIO PRINCIPAL: Usar datos reales de loan_items (que tiene interest_paid)
+      $this->db->select("
+          u.id as user_id,
+          CONCAT(u.first_name, ' ', u.last_name) as user_name,
+          COALESCE(SUM(li.fee_amount), 0) as total_amount_collected,
+          COALESCE(SUM(li.interest_paid), 0) as total_interest_logged,
+          COUNT(DISTINCT li.id) as total_payments,
+          MAX(li.pay_date) as last_payment_date
+      ");
+      $this->db->from('users u');
+      $this->db->join('loan_items li', 'u.id = li.paid_by AND li.status = 0', 'left'); // LEFT JOIN con loan_items
+      $this->db->where('u.role', 'cobrador'); // Solo cobradores
+
+      // DEBUG: Agregar logs para verificar el JOIN y filtros
+      log_message('debug', 'Reports_m::get_interest_commissions - JOIN condition: u.id = li.paid_by AND li.status = 0');
+      log_message('debug', 'Reports_m::get_interest_commissions - WHERE role = cobrador');
+
+      if ($start_date) {
+          $this->db->where('li.pay_date >=', $start_date);
+          log_message('debug', 'Reports_m::get_interest_commissions - Aplicando filtro fecha inicio: ' . $start_date);
+      }
+      if ($end_date) {
+          $this->db->where('li.pay_date <=', $end_date);
+          log_message('debug', 'Reports_m::get_interest_commissions - Aplicando filtro fecha fin: ' . $end_date);
+      }
+
+      // IMPORTANTE: Solo incluir cobradores que han realizado pagos
+      $this->db->having('total_payments > 0');
+
+      $this->db->group_by('u.id');
+      $this->db->order_by('u.first_name', 'ASC');
+
+      $query = $this->db->get();
+      $result = $query->result();
+
+      log_message('debug', 'Reports_m::get_interest_commissions - QUERY ejecutada: ' . $this->db->last_query());
+      log_message('debug', 'Reports_m::get_interest_commissions - Resultados obtenidos: ' . count($result));
+
+      // Procesar resultados para cálculos finales
+      foreach ($result as &$row) {
+          // Calcular comisión al 40% basada en intereses registrados
+          $row->commission_40 = $row->total_interest_logged * 0.4;
+
+          // Determinar estado de envío basado en pagos realizados
+          $row->estado_envio = ($row->total_payments > 0) ? 'Enviado' : 'Pendiente';
+
+          // Formatear fecha último pago
+          $row->ultimo_pago = $row->last_payment_date ? date('d/m/Y', strtotime($row->last_payment_date)) : 'N/A';
+
+          // Formatear valores para mostrar en vista
+          $row->total_interest_formatted = '$' . number_format($row->total_interest_logged, 2, ',', '.');
+          $row->commission_40_formatted = '$' . number_format($row->commission_40, 2, ',', '.');
+          $row->send_status = strtolower($row->estado_envio);
+          $row->last_payment_date = $row->last_payment_date;
+          $row->total_interest_paid = $row->total_interest_logged;
+          $row->interest_commission_40 = $row->commission_40;
+
+          log_message('debug', 'Reports_m::get_interest_commissions - Procesado ' . $row->user_name .
+                     ' - Amount: $' . number_format($row->total_amount_collected, 2) .
+                     ' - Interest: $' . number_format($row->total_interest_logged, 2) .
+                     ' - Commission 40%: $' . number_format($row->commission_40, 2) .
+                     ' - Estado: ' . $row->estado_envio .
+                     ' - Pagos: ' . $row->total_payments);
+
+          // DEBUG: Verificar cálculo de commission_40
+          log_message('debug', 'Reports_m::get_interest_commissions - Cálculo commission_40: ' . $row->total_interest_logged . ' * 0.4 = ' . $row->commission_40);
+      }
+
+      // DEBUG: Verificar si hay cobradores sin resultados
+      if ($total_cobradores > count($result)) {
+          $faltantes = $total_cobradores - count($result);
+          log_message('debug', 'Reports_m::get_interest_commissions - ALERTA: ' . $faltantes . ' cobradores faltan en los resultados');
+
+          // Obtener lista de cobradores faltantes
+          $this->db->select('u.id, CONCAT(u.first_name, " ", u.last_name) as name');
+          $this->db->from('users u');
+          $this->db->where('u.role', 'cobrador');
+          $todos_cobradores = $this->db->get()->result();
+
+          $cobradores_en_resultado = array_column($result, 'user_id');
+          $faltantes_lista = array_filter($todos_cobradores, function($c) use ($cobradores_en_resultado) {
+              return !in_array($c->id, $cobradores_en_resultado);
+          });
+
+          log_message('debug', 'Reports_m::get_interest_commissions - Cobradores faltantes: ' . json_encode($faltantes_lista));
+      }
+
+      return $result;
+  }
 
    /**
     * Reporte detallado de comisiones con datos del cliente y cobrador
@@ -432,24 +532,41 @@ class Reports_m extends CI_Model {
     */
    public function get_cobradores_list()
    {
-     // Obtener TODOS los usuarios que han realizado al menos una cobranza (con o sin intereses)
-     $this->db->select('u.id, CONCAT(u.first_name, " ", u.last_name) AS nombre');
+     // DEBUG: Verificar qué roles existen en la base de datos
+     $this->db->select('role');
+     $this->db->distinct();
+     $this->db->from('users');
+     $roles_query = $this->db->get();
+     $roles = $roles_query->result();
+     log_message('debug', 'Reports_m::get_cobradores_list - ROLES existentes en BD: ' . json_encode($roles));
+
+     // DEBUG: Contar usuarios por rol
+     $this->db->select('role, COUNT(*) as count');
+     $this->db->from('users');
+     $this->db->group_by('role');
+     $role_counts = $this->db->get()->result();
+     log_message('debug', 'Reports_m::get_cobradores_list - Conteo por rol: ' . json_encode($role_counts));
+
+     // Obtener TODOS los usuarios que han realizado pagos (sin filtrar por rol específico)
+     $this->db->select('u.id, CONCAT(u.first_name, " ", u.last_name) AS nombre, u.role');
+     $this->db->distinct();
      $this->db->from('users u');
-     $this->db->join('loan_items li', 'li.paid_by = u.id', 'left');
-     $this->db->where('li.status', 0); // Pagado
-     $this->db->where('li.paid_by IS NOT NULL', null, false); // Asegurar que paid_by no sea null
-     $this->db->group_by('u.id'); // Agrupar por usuario para evitar duplicados
+     $this->db->join('loan_items li', 'li.paid_by = u.id', 'inner'); // Solo usuarios que han realizado pagos
+     $this->db->where('li.status', 0); // Pagos completados
      $this->db->order_by('u.first_name');
 
      $result = $this->db->get()->result();
 
-     log_message('debug', 'Reports_m::get_cobradores_list - Encontrados ' . count($result) . ' cobradores');
+     log_message('debug', 'Reports_m::get_cobradores_list - QUERY ejecutada: ' . $this->db->last_query());
+     log_message('debug', 'Reports_m::get_cobradores_list - Encontrados ' . count($result) . ' usuarios con pagos realizados');
      if (!empty($result)) {
-       $nombres = array_column($result, 'nombre');
-       log_message('debug', 'Reports_m::get_cobradores_list - Nombres: ' . implode(', ', $nombres));
+       foreach ($result as $user) {
+         log_message('debug', 'Reports_m::get_cobradores_list - Usuario: ' . $user->nombre . ' (ID: ' . $user->id . ', Rol: ' . $user->role . ')');
+       }
+     } else {
+       log_message('debug', 'Reports_m::get_cobradores_list - NO se encontraron usuarios con pagos realizados');
      }
 
-     // Si no hay resultados, devolver lista vacía pero no error
      return $result ?: [];
    }
 
@@ -481,11 +598,10 @@ class Reports_m extends CI_Model {
    public function get_top_collectors_chart()
    {
      if ($this->db->field_exists('paid_by', 'loan_items')) {
-       $this->db->select("u.id AS user_id, CONCAT(u.first_name,' ',u.last_name) AS user_name, COUNT(li.id) AS payments_count")
-                ->from('loan_items li')
-                ->join('users u', 'u.id = li.paid_by', 'left')
-                ->where('li.status', 0)
-                ->where('li.paid_by IS NOT NULL', null, false)
+       $this->db->select("u.id AS user_id, CONCAT(u.first_name,' ',u.last_name) AS user_name, COALESCE(COUNT(li.id), 0) AS payments_count")
+                ->from('users u')
+                ->join('loan_items li', 'li.paid_by = u.id', 'left')
+                ->where('u.role', 'cobrador') // Solo cobradores
                 ->group_by('u.id')
                 ->order_by('payments_count', 'DESC')
                 ->limit(10);
@@ -596,24 +712,24 @@ class Reports_m extends CI_Model {
      $this->db->select("
        u.id AS user_id,
        CONCAT(u.first_name, ' ', u.last_name) AS user_name,
-       COUNT(DISTINCT li.id) AS total_quotas_collected,
-       COUNT(DISTINCT CASE WHEN li.status = 0 THEN li.id END) AS quotas_paid,
-       COUNT(DISTINCT CASE WHEN li.status = 1 THEN li.id END) AS quotas_pending,
-       SUM(CASE WHEN li.status = 0 THEN li.fee_amount ELSE 0 END) AS total_amount_collected,
-       COUNT(DISTINCT l.id) AS total_loans_handled,
-       COUNT(DISTINCT c.id) AS total_customers_handled
+       COALESCE(COUNT(DISTINCT li.id), 0) AS total_quotas_collected,
+       COALESCE(COUNT(DISTINCT CASE WHEN li.status = 0 THEN li.id END), 0) AS quotas_paid,
+       COALESCE(COUNT(DISTINCT CASE WHEN li.status = 1 THEN li.id END), 0) AS quotas_pending,
+       COALESCE(SUM(CASE WHEN li.status = 0 THEN li.fee_amount ELSE 0 END), 0) AS total_amount_collected,
+       COALESCE(COUNT(DISTINCT l.id), 0) AS total_loans_handled,
+       COALESCE(COUNT(DISTINCT c.id), 0) AS total_customers_handled
      ")
-     ->from('loan_items li')
+     ->from('users u')
+     ->join('loan_items li', 'li.paid_by = u.id', 'left')
      ->join('loans l', 'l.id = li.loan_id', 'left')
      ->join('customers c', 'c.id = l.customer_id', 'left')
-     ->join('users u', 'u.id = li.paid_by', 'left');
+     ->where('u.role', 'cobrador'); // Solo cobradores
 
      if ($user_id) {
-       $this->db->where('li.paid_by', $user_id);
+       $this->db->where('u.id', $user_id);
      }
 
-     $this->db->where('li.paid_by IS NOT NULL', null, false)
-              ->group_by('u.id')
+     $this->db->group_by('u.id')
               ->order_by('total_amount_collected', 'DESC');
 
      return $this->db->get()->result();
@@ -627,24 +743,24 @@ class Reports_m extends CI_Model {
      $this->db->select("
        u.id AS user_id,
        CONCAT(u.first_name, ' ', u.last_name) AS user_name,
-       l.id AS loan_id,
-       CONCAT(c.first_name, ' ', c.last_name) AS customer_name,
-       c.dni AS customer_dni,
-       l.num_fee AS total_quotas,
-       COUNT(CASE WHEN li.status = 0 THEN 1 END) AS paid_quotas,
-       SUM(CASE WHEN li.status = 0 THEN li.fee_amount ELSE 0 END) AS amount_collected
+       COALESCE(l.id, 0) AS loan_id,
+       COALESCE(CONCAT(c.first_name, ' ', c.last_name), 'Sin cliente') AS customer_name,
+       COALESCE(c.dni, 'N/A') AS customer_dni,
+       COALESCE(l.num_fee, 0) AS total_quotas,
+       COALESCE(COUNT(CASE WHEN li.status = 0 THEN 1 END), 0) AS paid_quotas,
+       COALESCE(SUM(CASE WHEN li.status = 0 THEN li.fee_amount ELSE 0 END), 0) AS amount_collected
      ")
-     ->from('loan_items li')
+     ->from('users u')
+     ->join('loan_items li', 'li.paid_by = u.id', 'left')
      ->join('loans l', 'l.id = li.loan_id', 'left')
      ->join('customers c', 'c.id = l.customer_id', 'left')
-     ->join('users u', 'u.id = li.paid_by', 'left');
+     ->where('u.role', 'cobrador'); // Solo cobradores
 
      if ($user_id) {
-       $this->db->where('li.paid_by', $user_id);
+       $this->db->where('u.id', $user_id);
      }
 
-     $this->db->where('li.paid_by IS NOT NULL', null, false)
-              ->group_by('u.id, l.id')
+     $this->db->group_by('u.id, l.id')
               ->order_by('u.id, l.id');
 
      return $this->db->get()->result();
@@ -657,14 +773,15 @@ class Reports_m extends CI_Model {
    {
      log_message('debug', 'Reports_m::get_payments_by_customer_chart_filtered called with user_id: ' . ($user_id ?: 'null'));
 
-     $this->db->select("c.id AS customer_id, CONCAT(c.first_name,' ',c.last_name) AS customer_name, COUNT(li.id) AS payments_count, SUM(li.fee_amount) AS total_paid")
-              ->from('loan_items li')
+     $this->db->select("c.id AS customer_id, CONCAT(c.first_name,' ',c.last_name) AS customer_name, COALESCE(COUNT(li.id), 0) AS payments_count, COALESCE(SUM(li.fee_amount), 0) AS total_paid")
+              ->from('users u')
+              ->join('loan_items li', 'li.paid_by = u.id', 'left')
               ->join('loans l', 'l.id = li.loan_id', 'left')
               ->join('customers c', 'c.id = l.customer_id', 'left')
-              ->where('li.status', 0);
+              ->where('u.role', 'cobrador'); // Solo cobradores
 
      if ($user_id) {
-       $this->db->where('li.paid_by', $user_id);
+       $this->db->where('u.id', $user_id);
        log_message('debug', 'Reports_m::get_payments_by_customer_chart_filtered - filtering by user_id: ' . $user_id);
      }
 
@@ -685,14 +802,13 @@ class Reports_m extends CI_Model {
    public function get_top_collectors_chart_filtered($user_id = null)
    {
      if ($this->db->field_exists('paid_by', 'loan_items')) {
-       $this->db->select("u.id AS user_id, CONCAT(u.first_name,' ',u.last_name) AS user_name, COUNT(li.id) AS payments_count")
-                ->from('loan_items li')
-                ->join('users u', 'u.id = li.paid_by', 'left')
-                ->where('li.status', 0)
-                ->where('li.paid_by IS NOT NULL', null, false);
+       $this->db->select("u.id AS user_id, CONCAT(u.first_name,' ',u.last_name) AS user_name, COALESCE(COUNT(li.id), 0) AS payments_count")
+                ->from('users u')
+                ->join('loan_items li', 'li.paid_by = u.id', 'left')
+                ->where('u.role', 'cobrador'); // Solo cobradores
 
        if ($user_id) {
-         $this->db->where('li.paid_by', $user_id);
+         $this->db->where('u.id', $user_id);
        }
 
        $this->db->group_by('u.id')
@@ -768,6 +884,138 @@ class Reports_m extends CI_Model {
 
      log_message('debug', 'Reports_m::get_average_loan_per_customer result: ' . $average);
      return round($average, 2);
+   }
+
+   /**
+    * Obtener datos detallados de préstamos para el reporte con todas las columnas requeridas
+    */
+   public function get_detailed_loans_report($user_id = null, $start_date = null, $end_date = null)
+   {
+       log_message('debug', 'Reports_m::get_detailed_loans_report called with user_id: ' . ($user_id ?: 'null') . ', start_date: ' . ($start_date ?: 'null') . ', end_date: ' . ($end_date ?: 'null'));
+
+       // CAMBIO PRINCIPAL: Obtener préstamos donde el usuario realizó pagos, no préstamos asignados
+       $this->db->select("
+           l.id as loan_id,
+           CONCAT(c.first_name, ' ', c.last_name) as customer_name,
+           c.dni,
+           c.phone_fixed,
+           l.credit_amount as monto_original,
+           l.num_fee as total_cuotas,
+           l.interest_amount as tasa_interes,
+           COUNT(DISTINCT CASE WHEN li.status = 0 THEN li.id END) as pagos_realizados,
+           ROUND((COUNT(DISTINCT CASE WHEN li.status = 0 THEN li.id END) / NULLIF(l.num_fee, 0)) * 100, 1) as progreso,
+           COALESCE(SUM(CASE WHEN li.status = 0 THEN li.interest_paid END), 0) as interes_pagado,
+           COALESCE(SUM(CASE WHEN li.status = 0 THEN li.capital_paid END), 0) as capital_pagado,
+           MAX(CASE WHEN li.status = 0 THEN li.pay_date END) as ultimo_pago_fecha,
+           MAX(CASE WHEN li.status = 0 THEN li.fee_amount END) as ultimo_pago_monto
+       ")
+       ->from('loan_items li')
+       ->join('loans l', 'l.id = li.loan_id', 'left')
+       ->join('customers c', 'c.id = l.customer_id', 'left')
+       ->where('li.status', 0) // Solo pagos realizados
+       ->where('li.paid_by IS NOT NULL'); // Solo pagos con cobrador asignado
+
+       // Filtrar por cobrador específico si se proporciona
+       if ($user_id && $user_id !== 'all') {
+           $this->db->where('li.paid_by', $user_id);
+           log_message('debug', 'REPORTS: Filtrando por cobrador ID: ' . $user_id);
+       }
+
+       if ($start_date) {
+           $this->db->where('l.date >=', $start_date);
+       }
+
+       if ($end_date) {
+           $this->db->where('l.date <=', $end_date);
+       }
+
+       // Solo préstamos activos o con pagos realizados
+       $this->db->where('l.status IN (0, 1)');
+
+       $this->db->group_by('l.id, c.id')
+                ->order_by('l.date', 'DESC');
+
+       $result = $this->db->get()->result();
+       log_message('debug', 'REPORTS: Consulta ejecutada, resultados obtenidos: ' . count($result));
+
+       // Procesar resultados para cálculos finales
+       foreach ($result as &$row) {
+           log_message('debug', 'REPORTS: Procesando préstamo ID ' . $row->loan_id . ' - pagos_realizados: ' . $row->pagos_realizados . ', interes_pagado: ' . $row->interes_pagado);
+
+           // Si no hay intereses registrados pero hay pagos, calcular automáticamente
+           if ($row->interes_pagado == 0 && $row->pagos_realizados > 0) {
+               $calculated_interest = $this->_calculate_missing_interest($row->loan_id, $row->pagos_realizados, $row->ultimo_pago_monto, $row->tasa_interes, $row->monto_original, $row->total_cuotas);
+               $row->interes_pagado = $calculated_interest;
+               log_message('debug', 'REPORTS: Intereses calculados para préstamo ' . $row->loan_id . ': $' . $calculated_interest);
+           }
+
+           // Calcular comisión 40%
+           $row->comision_40 = $row->interes_pagado * 0.4;
+
+           // Determinar estado de comisión basado en si hay intereses calculados
+           $row->estado_comision = ($row->interes_pagado > 0) ? 'Disponible' : 'Sin Intereses';
+
+           // Formatear último pago
+           if ($row->ultimo_pago_fecha && $row->ultimo_pago_monto) {
+               $row->ultimo_pago = date('Y-m-d', strtotime($row->ultimo_pago_fecha)) . ': $' . number_format($row->ultimo_pago_monto, 2, ',', '.');
+           } else {
+               $row->ultimo_pago = 'N/A';
+           }
+
+           // Formatear montos
+           $row->monto_original = '$' . number_format($row->monto_original, 2, ',', '.');
+           $row->interes_pagado = '$' . number_format($row->interes_pagado, 2, ',', '.');
+           $row->comision_40 = '$' . number_format($row->comision_40, 2, ',', '.');
+
+           // Formatear progreso (asegurar que no sea null)
+           $row->progreso = ($row->progreso !== null) ? $row->progreso . '%' : '0.0%';
+
+           // Validar datos nulos
+           $row->customer_name = $row->customer_name ?: 'Cliente sin nombre';
+           $row->dni = $row->dni ?: 'N/A';
+           $row->phone_fixed = $row->phone_fixed ?: 'N/A';
+           $row->pagos_realizados = (int)$row->pagos_realizados;
+
+           log_message('debug', 'REPORTS: Préstamo ' . $row->loan_id . ' final - pagos: ' . $row->pagos_realizados . ', interes: ' . $row->interes_pagado . ', progreso: ' . $row->progreso);
+       }
+
+       log_message('debug', 'Reports_m::get_detailed_loans_report result count: ' . count($result));
+       return $result;
+   }
+
+   /**
+    * Calcular intereses faltantes usando múltiples métodos
+    */
+   private function _calculate_missing_interest($loan_id, $pagos_realizados, $ultimo_pago_monto, $tasa_interes, $monto_original, $total_cuotas)
+   {
+       // Método 1: Calcular basado en tasa de interés del préstamo
+       if ($tasa_interes > 0 && $total_cuotas > 0) {
+           $monthly_rate = $tasa_interes / 100; // Convertir porcentaje a decimal
+           $interest_per_quota = ($monto_original * $monthly_rate) / $total_cuotas;
+           $calculated = $interest_per_quota * $pagos_realizados;
+           log_message('debug', 'INTEREST_CALC: Método 1 - tasa: ' . $tasa_interes . '%, calculado: $' . $calculated);
+           return round($calculated, 2);
+       }
+
+       // Método 2: Estimación basada en último pago (10% del pago es interés)
+       if ($ultimo_pago_monto > 0) {
+           $estimated_per_payment = $ultimo_pago_monto * 0.1; // 10% estimado
+           $calculated = $estimated_per_payment * $pagos_realizados;
+           log_message('debug', 'INTEREST_CALC: Método 2 - último pago: $' . $ultimo_pago_monto . ', calculado: $' . $calculated);
+           return round($calculated, 2);
+       }
+
+       // Método 3: Estimación simple basada en monto original (2% mensual)
+       if ($monto_original > 0 && $total_cuotas > 0) {
+           $estimated_monthly_rate = 0.02; // 2% mensual estimado
+           $interest_per_quota = ($monto_original * $estimated_monthly_rate) / $total_cuotas;
+           $calculated = $interest_per_quota * $pagos_realizados;
+           log_message('debug', 'INTEREST_CALC: Método 3 - estimación simple: $' . $calculated);
+           return round($calculated, 2);
+       }
+
+       log_message('debug', 'INTEREST_CALC: No se pudieron calcular intereses para préstamo ' . $loan_id);
+       return 0;
    }
 
 }

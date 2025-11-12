@@ -103,19 +103,49 @@
 
     <!-- ✅ CORREGIDO: Inicializar DataTable solo si no es la página de configuración -->
     <script>
-      $(document).ready(function() {
-        // Solo inicializar DataTable si no estamos en la página de configuración
-        if (!window.location.href.includes('/admin/config') && $('#dataTable').length > 0) {
-          $('#dataTable').DataTable({
-            "order": [],
-            "language": {
-              "url": "//cdn.datatables.net/plug-ins/1.10.25/i18n/Spanish.json"
-            },
-            "pageLength": 25,
-            "responsive": true
-          });
+      // Esperar a que jQuery y DataTables estén disponibles
+      (function() {
+        function initDataTable() {
+          if (typeof jQuery !== 'undefined' && typeof $.fn.DataTable !== 'undefined') {
+            // Solo inicializar DataTable si no estamos en la página de configuración
+            if (!window.location.href.includes('/admin/config') && $('#dataTable').length > 0) {
+              try {
+                $('#dataTable').DataTable({
+                  "order": [],
+                  "language": {
+                    "url": "//cdn.datatables.net/plug-ins/1.10.25/i18n/Spanish.json"
+                  },
+                  "pageLength": 25,
+                  "responsive": true
+                });
+              } catch (e) {
+                console.error('Error inicializando DataTable:', e);
+              }
+            }
+          } else {
+            // Reintentar después de 100ms
+            setTimeout(initDataTable, 100);
+          }
         }
-      });
+        
+        // Iniciar cuando el documento esté listo
+        if (typeof jQuery !== 'undefined') {
+          $(document).ready(initDataTable);
+        } else {
+          // Esperar a que jQuery esté disponible
+          var checkJQuery = setInterval(function() {
+            if (typeof jQuery !== 'undefined') {
+              clearInterval(checkJQuery);
+              $(document).ready(initDataTable);
+            }
+          }, 50);
+          
+          // Timeout después de 5 segundos
+          setTimeout(function() {
+            clearInterval(checkJQuery);
+          }, 5000);
+        }
+      })();
     </script>
 
     <script type="text/javascript">

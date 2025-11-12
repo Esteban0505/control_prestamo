@@ -67,11 +67,7 @@
                   <td><?php echo htmlspecialchars($customer->address ?: 'No registrada'); ?></td>
                 </tr>
                 <tr>
-                  <th>RUC:</th>
-                  <td><?php echo htmlspecialchars($customer->ruc ?: 'No registrado'); ?></td>
-                </tr>
-                <tr>
-                  <th>Empresa:</th>
+                  <th>Observaciones:</th>
                   <td><?php echo htmlspecialchars($customer->company ?: 'No registrada'); ?></td>
                 </tr>
               </table>
